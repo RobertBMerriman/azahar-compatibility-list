@@ -1,0 +1,49 @@
+name: Update box art
+
+on:
+  schedule:
+    - cron: '0 6 * * 1' # Mondays, picks up titles newly added to the compatibility list
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+
+concurrency:
+  group: boxart
+
+jobs:
+  boxart:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install cwebp
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends webp
+
+      - name: Fetch box art
+        run: node scripts/fetch-boxart.mjs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Commit and publish
+        run: |
+          git add boxart
+          if git diff --cached --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Update box art"
+          git pull --rebase
+          git push
+          # Pushes made with GITHUB_TOKEN don't trigger a GitHub Pages build, so request one
+          gh api -X POST "repos/${{ github.repository }}/pages/builds" || echo "::warning::Could not request a Pages build"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
