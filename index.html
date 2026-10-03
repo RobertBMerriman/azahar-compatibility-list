@@ -100,9 +100,14 @@
         <!-- Search & Filter Bar -->
         <div class="glass rounded-3xl p-4 mb-8 flex flex-col md:flex-row gap-4 shadow-2xl">
             <div class="relative flex-grow">
-                <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"></i>
-                <input type="text" id="searchInput" placeholder="Search by game name or Title ID..." 
-                    class="w-full bg-slate-900/80 border border-slate-700 rounded-2xl py-4 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-white placeholder-slate-500">
+                <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none"></i>
+                <input type="text" id="searchInput" placeholder="Search by name or Title ID..."
+                    autocomplete="off" spellcheck="false" enterkeyhint="search"
+                    class="w-full bg-slate-900/80 border border-slate-700 rounded-2xl py-4 pl-12 pr-14 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-white placeholder-slate-500">
+                <button type="button" id="clearSearch" aria-label="Clear search" title="Clear search"
+                    class="hidden absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-xl text-slate-400 hover:text-white hover:bg-slate-700/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 transition-colors">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
             </div>
             
             <div class="flex gap-2 min-w-[200px]">
@@ -160,6 +165,8 @@
             <div class="w-16 h-16 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-custom-spin mb-6"></div>
             <p class="text-slate-400 font-medium animate-pulse text-lg">Syncing with Azahar database...</p>
         </div>
+
+        <p id="resultCount" class="text-sm text-slate-500 mb-4 min-h-[1.25rem]"></p>
 
         <!-- Results Grid -->
         <div id="gameGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -284,6 +291,10 @@
             const empty = document.getElementById('noResults');
             grid.innerHTML = '';
 
+            document.getElementById('resultCount').innerText = list.length === masterData.length
+                ? `${list.length} titles`
+                : `Showing ${list.length} of ${masterData.length} titles`;
+
             if (list.length === 0) {
                 empty.classList.remove('hidden');
                 return;
@@ -343,7 +354,40 @@
             render(filtered);
         }
 
-        document.getElementById('searchInput').addEventListener('input', filter);
+        const searchInput = document.getElementById('searchInput');
+        const clearSearch = document.getElementById('clearSearch');
+        let searchTimer;
+
+        // Wait for a pause in typing instead of re-rendering every card on each keystroke
+        searchInput.addEventListener('input', () => {
+            clearSearch.classList.toggle('hidden', !searchInput.value);
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(filter, 150);
+        });
+
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && searchInput.value) {
+                clearSearchInput();
+            } else if (e.key === 'Enter') {
+                clearTimeout(searchTimer);
+                filter();
+                // Close the on-screen keyboard so the results are visible
+                if (matchMedia('(pointer: coarse)').matches) searchInput.blur();
+            }
+        });
+
+        clearSearch.addEventListener('click', () => {
+            clearSearchInput();
+            searchInput.focus();
+        });
+
+        function clearSearchInput() {
+            searchInput.value = '';
+            clearSearch.classList.add('hidden');
+            clearTimeout(searchTimer);
+            filter();
+        }
+
         document.getElementById('statusFilter').addEventListener('change', filter);
 
         init();
