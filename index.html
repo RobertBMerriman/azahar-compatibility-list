@@ -37,6 +37,12 @@
             border-color: rgb(var(--rating) / 0.25);
         }
 
+        /* Box art fades in once loaded. These use data attributes rather than classes
+           because the Tailwind CDN rescans the whole page whenever a class changes. */
+        .boxart { opacity: 0; transition: opacity 0.3s; }
+        .boxart[data-loaded] { opacity: 1; }
+        .boxart[data-failed] { display: none; }
+
         .card-hover {
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
@@ -313,6 +319,7 @@
                 document.getElementById('loading').classList.add('hidden');
                 document.getElementById('statsPanel').classList.replace('opacity-0', 'opacity-100');
                 
+                buildCards();
                 readUrlState();
                 updateStats(masterData);
                 filter();
@@ -353,89 +360,90 @@
 
         function quickFilter(status) {
             document.getElementById('statusFilter').value = status;
-            
-            document.querySelectorAll('.stat-bubble').forEach(b => {
-                if (b.getAttribute('data-filter') === status) {
-                    b.classList.add('active');
-                } else {
-                    b.classList.remove('active');
-                }
-            });
-            
             filter();
         }
 
-        function render(list) {
+        // The Tailwind CDN rescans every element on the page whenever an element is added
+        // or a class changes, which is slow with ~1200 cards. So cards are built once, and
+        // filtering only changes styles, text and classes that are already set (toggle() with
+        // a force argument doesn't touch the attribute when nothing changes).
+        function buildCards() {
             const grid = document.getElementById('gameGrid');
-            const empty = document.getElementById('noResults');
-            grid.innerHTML = '';
+            masterData.forEach((game) => {
+                game.card = createCard(game);
+                grid.appendChild(game.card);
+            });
+        }
 
-            document.getElementById('resultCount').innerText = list.length === masterData.length
+        function createCard(game) {
+            const theme = THEMES[game.compatibility] || THEMES[99];
+            const name = escapeHtml(game.name);
+            const tooltip = escapeHtml(`${game.name}\nTitle ID${game.title_ids.length > 1 ? 's' : ''}: ${game.title_ids.join('\n')}`);
+            const card = document.createElement('div');
+            card.className = 'glass rating-tint rounded-3xl p-6 card-hover flex flex-col h-full';
+            card.style.setProperty('--rating', theme.tint);
+
+            // The art box has a fixed size so cards don't jump when images load
+            const art = game.art
+                ? `<img src="${GAME_DATA_DIR}${escapeHtml(game.art)}" alt="" loading="lazy" decoding="async"
+                        class="boxart col-start-1 row-start-1 w-full h-full object-contain bg-slate-900">`
+                : '';
+
+            const type = GAME_TYPES[game.type];
+            const badge = (icon, label) => `
+                <span class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-slate-800/80 border border-slate-700/60 px-2.5 py-0.5 text-[11px] font-semibold text-slate-400">
+                    ${icon ? `<i class="fa-solid ${icon}"></i>` : ''}${label}
+                </span>`;
+            const badges = [
+                type && badge(type.icon, type.label),
+                type?.system && badge(null, type.system),
+                game.new3ds && badge('fa-star', 'New 3DS'),
+            ].filter(Boolean).join('');
+
+            card.innerHTML = `
+                <div class="flex gap-4 mb-6">
+                    <div class="shrink-0 w-28 aspect-[9/8] rounded-xl bg-slate-900/60 border border-slate-700/50 overflow-hidden grid place-items-center">
+                        <i class="fa-solid fa-gamepad col-start-1 row-start-1 text-2xl text-slate-700"></i>
+                        ${art}
+                    </div>
+                    <div class="min-w-0">
+                        <h3 class="text-lg font-bold text-white leading-snug line-clamp-3" title="${tooltip}">
+                            ${name}
+                        </h3>
+                        ${badges ? `<div class="mt-2 flex flex-wrap gap-1.5">${badges}</div>` : ''}
+                    </div>
+                </div>
+
+                <div class="mt-auto">
+                    <div class="flex items-center gap-4 mb-3">
+                        <div class="w-12 h-12 rounded-2xl ${theme.color} ${theme.shadow} flex items-center justify-center text-white shadow-lg text-lg">
+                            <i class="fa-solid ${theme.icon}"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm font-black text-slate-100 uppercase tracking-wide">${theme.label}</p>
+                            <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Rating: ${game.compatibility}</p>
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-400 leading-relaxed italic border-t border-slate-700/50 pt-3">
+                        ${theme.desc}
+                    </p>
+                </div>
+            `;
+            return card;
+        }
+
+        function render(list) {
+            const visible = new Set(list);
+            masterData.forEach((game) => {
+                game.card.style.display = visible.has(game) ? '' : 'none';
+            });
+
+            // Update the existing text node rather than replacing it
+            const count = document.getElementById('resultCount');
+            (count.firstChild || count.appendChild(document.createTextNode(''))).data = list.length === masterData.length
                 ? `${list.length} titles`
                 : `Showing ${list.length} of ${masterData.length} titles`;
-
-            if (list.length === 0) {
-                empty.classList.remove('hidden');
-                return;
-            }
-            empty.classList.add('hidden');
-
-            list.forEach((game) => {
-                const theme = THEMES[game.compatibility] || THEMES[99];
-                const name = escapeHtml(game.name);
-                const tooltip = escapeHtml(`${game.name}\nTitle ID${game.title_ids.length > 1 ? 's' : ''}: ${game.title_ids.join('\n')}`);
-                const card = document.createElement('div');
-                card.className = 'glass rating-tint rounded-3xl p-6 card-hover flex flex-col h-full';
-                card.style.setProperty('--rating', theme.tint);
-
-                // The art box has a fixed size so cards don't jump when images load
-                const art = game.art
-                    ? `<img src="${GAME_DATA_DIR}${escapeHtml(game.art)}" alt="" loading="lazy" decoding="async"
-                            class="boxart col-start-1 row-start-1 w-full h-full object-contain bg-slate-900 opacity-0 transition-opacity duration-300">`
-                    : '';
-
-                const type = GAME_TYPES[game.type];
-                const badge = (icon, label) => `
-                    <span class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-slate-800/80 border border-slate-700/60 px-2.5 py-0.5 text-[11px] font-semibold text-slate-400">
-                        ${icon ? `<i class="fa-solid ${icon}"></i>` : ''}${label}
-                    </span>`;
-                const badges = [
-                    type && badge(type.icon, type.label),
-                    type?.system && badge(null, type.system),
-                    game.new3ds && badge('fa-star', 'New 3DS'),
-                ].filter(Boolean).join('');
-
-                card.innerHTML = `
-                    <div class="flex gap-4 mb-6">
-                        <div class="shrink-0 w-28 aspect-[9/8] rounded-xl bg-slate-900/60 border border-slate-700/50 overflow-hidden grid place-items-center">
-                            <i class="fa-solid fa-gamepad col-start-1 row-start-1 text-2xl text-slate-700"></i>
-                            ${art}
-                        </div>
-                        <div class="min-w-0">
-                            <h3 class="text-lg font-bold text-white leading-snug line-clamp-3" title="${tooltip}">
-                                ${name}
-                            </h3>
-                            ${badges ? `<div class="mt-2 flex flex-wrap gap-1.5">${badges}</div>` : ''}
-                        </div>
-                    </div>
-
-                    <div class="mt-auto">
-                        <div class="flex items-center gap-4 mb-3">
-                            <div class="w-12 h-12 rounded-2xl ${theme.color} ${theme.shadow} flex items-center justify-center text-white shadow-lg text-lg">
-                                <i class="fa-solid ${theme.icon}"></i>
-                            </div>
-                            <div>
-                                <p class="text-sm font-black text-slate-100 uppercase tracking-wide">${theme.label}</p>
-                                <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Rating: ${game.compatibility}</p>
-                            </div>
-                        </div>
-                        <p class="text-xs text-slate-400 leading-relaxed italic border-t border-slate-700/50 pt-3">
-                            ${theme.desc}
-                        </p>
-                    </div>
-                `;
-                grid.appendChild(card);
-            });
+            document.getElementById('noResults').classList.toggle('hidden', list.length > 0);
         }
 
         function filter() {
@@ -445,11 +453,7 @@
             const type = document.getElementById('typeFilter').value;
 
             document.querySelectorAll('.stat-bubble').forEach(b => {
-                if (b.getAttribute('data-filter') === status) {
-                    b.classList.add('active');
-                } else {
-                    b.classList.remove('active');
-                }
+                b.classList.toggle('active', b.getAttribute('data-filter') === status);
             });
 
             const filtered = masterData.filter(g => {
@@ -524,7 +528,7 @@
 
         function clearSearchInput() {
             searchInput.value = '';
-            clearSearch.classList.add('hidden');
+            clearSearch.classList.toggle('hidden', true);
             clearTimeout(searchTimer);
             filter();
         }
@@ -535,10 +539,10 @@
         // load/error don't bubble, so listen in the capture phase for every card's image
         const gameGrid = document.getElementById('gameGrid');
         gameGrid.addEventListener('load', (e) => {
-            if (e.target.classList.contains('boxart')) e.target.classList.remove('opacity-0');
+            if (e.target.classList.contains('boxart')) e.target.dataset.loaded = '';
         }, true);
         gameGrid.addEventListener('error', (e) => {
-            if (e.target.classList.contains('boxart')) e.target.remove();
+            if (e.target.classList.contains('boxart')) e.target.dataset.failed = '';
         }, true);
 
         init();
