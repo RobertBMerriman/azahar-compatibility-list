@@ -235,8 +235,9 @@
                 document.getElementById('loading').classList.add('hidden');
                 document.getElementById('statsPanel').classList.replace('opacity-0', 'opacity-100');
                 
+                readUrlState();
                 updateStats(masterData);
-                render(masterData);
+                filter();
             } catch (err) {
                 document.getElementById('loading').innerHTML = `
                     <div class="glass p-8 rounded-3xl border-red-500/50 max-w-md mx-auto">
@@ -352,6 +353,29 @@
                 return nameMatch && statusMatch;
             });
             render(filtered);
+            writeUrlState();
+        }
+
+        // Keep the search and filters in the URL so results can be shared and survive a reload
+        function readUrlState() {
+            const params = new URLSearchParams(location.search);
+            searchInput.value = params.get('q') || '';
+            clearSearch.classList.toggle('hidden', !searchInput.value);
+            const rating = params.get('rating');
+            if (rating in THEMES) document.getElementById('statusFilter').value = rating;
+        }
+
+        function writeUrlState() {
+            const params = new URLSearchParams();
+            if (searchInput.value) params.set('q', searchInput.value);
+            const rating = document.getElementById('statusFilter').value;
+            if (rating !== 'all') params.set('rating', rating);
+            const query = params.toString();
+            try {
+                history.replaceState(null, '', query ? `?${query}` : location.pathname);
+            } catch {
+                // Not allowed for pages opened from disk
+            }
         }
 
         const searchInput = document.getElementById('searchInput');
