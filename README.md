@@ -3,14 +3,17 @@
 <p>It "should" stay up-to-date as it's pulling from the Official Azahar Repository info.</p> 
 <p>https://github.com/azahar-emu/azahar</p>
 
-## Box art
+## Box art and game types
 
 Box art is matched to each game by its Title ID and stored in `data/boxart/` as small WebP thumbnails, so the site never calls a third-party API.
 `data/games.json` maps Title IDs to images; games without art show a placeholder.
 
-The [Update game data](.github/workflows/update-game-data.yml) workflow runs daily (or manually from the Actions tab) and only looks up games that don't have art yet.
+The [Update game data](.github/workflows/update-game-data.yml) workflow runs daily (or manually from the Actions tab) and only looks up games it hasn't seen before.
 Sources, in order: [GameTDB](https://www.gametdb.com/), then [libretro-thumbnails](https://github.com/libretro-thumbnails/Nintendo_-_Nintendo_3DS).
 Games that can't be found are retried after 30 days.
+
+Each game is also labelled as Cartridge, eShop only, Virtual Console (with the original system), New 3DS only, or a demo, update or app.
+This comes from the Title ID itself, then Nintendo's eShop catalogue, then whether [No-Intro](https://github.com/libretro/libretro-database) lists it as a cartridge or a download.
 
 To fix or add art by hand, add `"<Title ID>": "<image URL>"` to `data/boxart-overrides.json`.
 

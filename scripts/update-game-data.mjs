@@ -7,13 +7,17 @@
 //   2. GameTDB                     Title ID -> product code (hax0kartik/3dsdb) -> cover
 //   3. libretro-thumbnails         product code -> No-Intro name (libretro-database) -> box art
 //
+// Each title's type (retail, eShop only, Virtual Console...) comes from its Title ID category,
+// then Nintendo's eShop catalogue, then whether No-Intro lists it as a cartridge or download.
+//
 // Only titles without data are looked up, so after the first run very few requests are made.
-// Titles without art are retried after RETRY_MISSES_AFTER_DAYS.
+// Titles that can't be found are retried after RETRY_MISSES_AFTER_DAYS.
 //
 // Usage:    node scripts/update-game-data.mjs [--out data] [--limit N]
 // Requires: Node 18+ and cwebp (apt install webp / brew install webp)
 
 import { execFile } from 'node:child_process';
+import https from 'node:https';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -27,6 +31,23 @@ const LIBRETRO_DATS = ['Nintendo - Nintendo 3DS.dat', 'Nintendo - Nintendo 3DS (
 const LIBRETRO_TREE = 'https://api.github.com/repos/libretro-thumbnails/Nintendo_-_Nintendo_3DS/git/trees/master?recursive=1';
 const LIBRETRO_BOXARTS = 'https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Nintendo_3DS/master/Named_Boxarts/';
 const GAMETDB = 'https://art.gametdb.com/3ds';
+// Nintendo's eShop catalogue, still online for re-downloads
+const SAMURAI = 'https://samurai.ctr.shop.nintendo.net/samurai/ws';
+
+// Title ID categories (the first 8 hex digits) that aren't regular applications
+const TITLE_ID_TYPES = {
+    '00040002': 'demo', '0004000E': 'update', '0004008C': 'dlc',
+    '00040010': 'system', '00040030': 'system', '00048004': 'dsiware',
+};
+// eShop platform IDs -> [type, New 3DS only]. Platform names are localised, so match on ID.
+const ESHOP_PLATFORMS = {
+    18: ['retail'], 103: ['retail'], 1002: ['retail', true],
+    19: ['eshop'], 1001: ['eshop', true],
+    24: ['vc-nes'], 21: ['vc-gb'], 22: ['vc-gbc'], 25: ['vc-gg'], 1004: ['vc-snes', true],
+    43: ['video'], 63: ['update'],
+};
+const ESHOP_VIRTUAL_CONSOLE = '10'; // platform category
+const ESHOP_DELAY_MS = 200;
 
 // GameTDB groups covers by language; the last letter of a product code is its region
 const GAMETDB_LANGS = { E: 'US', P: 'EN', J: 'JA', K: 'KO', W: 'ZH', C: 'ZH', D: 'DE', F: 'FR', S: 'ES', I: 'IT', H: 'NL', U: 'AU' };
@@ -65,25 +86,27 @@ const releaseIds = game => (game.releases || []).map(r => r.id && r.id.toUpperCa
 const productCode = code => (code.match(/([A-Z0-9]{4})$/) || [])[1];
 const daysSince = date => (Date.now() - Date.parse(date)) / 86400000;
 
-// Title ID -> product codes such as "AMKE"
-async function loadProductCodes() {
-    const codes = new Map();
+// Title ID -> { code: product code such as "AMKE", region, uid: eShop content ID }
+async function loadTitleDb() {
+    const titles = new Map();
     for (const region of TITLEDB_REGIONS) {
         const list = await (await fetchOk(`${TITLEDB_URL}${region}.json`)).json();
         for (const entry of list) {
             const id = (entry.TitleID || '').toUpperCase();
-            const code = productCode(entry['Product Code'] || '');
-            if (id && code && !codes.has(id)) codes.set(id, code);
+            if (id && !titles.has(id)) {
+                titles.set(id, { code: productCode(entry['Product Code'] || ''), region, uid: entry.UID });
+            }
         }
     }
-    return codes;
+    return titles;
 }
 
 // Ignores case, accents, punctuation and region tags so "Pokémon: X (USA)" matches "Pokemon X"
 const simplifyName = name => name.normalize('NFKD').replace(/\(.*?\)|\[.*?\]/g, '')
     .toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]/g, '');
 
-// libretro box art file names, best region first, by product code and by simplified name
+// libretro box art file names, best region first, by product code and by simplified name,
+// plus the simplified names of every cartridge (retail) and download (digital) No-Intro knows
 async function loadLibretroIndex() {
     const headers = process.env.GITHUB_TOKEN ? { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` } : {};
     const tree = await (await fetchOk(LIBRETRO_TREE, headers)).json();
@@ -96,11 +119,14 @@ async function loadLibretroIndex() {
     const regionRank = name => ['(USA', '(World', '(Europe'].findIndex(r => name.includes(r)) >>> 0;
 
     const byCode = new Map();
-    for (const url of LIBRETRO_DATS) {
+    const retail = new Set();
+    const digital = new Set();
+    for (const [i, url] of LIBRETRO_DATS.entries()) {
         const dat = await (await fetchOk(url)).text();
         for (const block of dat.split(/\ngame \(/)) {
             const name = (block.match(/^\s*name "([^"]*)"/m) || [])[1];
             const serial = (block.match(/^\s*serial "([^"]*)"/m) || [])[1];
+            if (name) (i === 0 ? retail : digital).add(simplifyName(name));
             if (!name || !serial || !available.has(fileName(name))) continue;
             for (const code of serial.split(',').map(s => productCode(s.trim())).filter(Boolean)) {
                 if (!byCode.has(code)) byCode.set(code, []);
@@ -114,13 +140,13 @@ async function loadLibretroIndex() {
     for (const name of [...available].sort((a, b) => regionRank(a) - regionRank(b))) {
         if (!byName.has(simplifyName(name))) byName.set(simplifyName(name), name);
     }
-    return { byCode, byName };
+    return { byCode, byName, retail, digital };
 }
 
-function findCandidates(game, ids, overrides, productCodes, libretro) {
+function findCandidates(game, ids, overrides, titleDb, libretro) {
     const candidates = ids.filter(id => overrides[id]).map(id => ({ source: 'override', url: overrides[id] }));
 
-    const codes = [...new Set(ids.map(id => productCodes.get(id)).filter(Boolean))];
+    const codes = [...new Set(ids.map(id => titleDb.get(id)?.code).filter(Boolean))];
     const rank = code => REGION_PREFERENCE.indexOf(code[3]) >>> 0;
     codes.sort((a, b) => rank(a) - rank(b));
 
@@ -189,7 +215,7 @@ async function saveWebp(buf, file, tmp) {
 
 // Downloads are shared between steps and only made when a step needs them
 const once = load => { let promise; return () => (promise ??= load()); };
-const getProductCodes = once(loadProductCodes);
+const getTitleDb = once(loadTitleDb);
 const getLibretroIndex = once(loadLibretroIndex);
 
 async function updateBoxart(games, manifest) {
@@ -213,7 +239,7 @@ async function updateBoxart(games, manifest) {
         throw new Error('cwebp is required (apt install webp / brew install webp)');
     }
 
-    const [productCodes, libretro] = await Promise.all([getProductCodes(), getLibretroIndex()]);
+    const [titleDb, libretro] = await Promise.all([getTitleDb(), getLibretroIndex()]);
     await mkdir(path.join(OUT_DIR, BOXART_DIR), { recursive: true });
     const tmp = await mkdtemp(path.join(tmpdir(), 'boxart-'));
     const today = new Date().toISOString().slice(0, 10);
@@ -225,7 +251,7 @@ async function updateBoxart(games, manifest) {
             const ids = releaseIds(game);
             let source;
             let unavailable = false;
-            for (const candidate of findCandidates(game, ids, overrides, productCodes, libretro)) {
+            for (const candidate of findCandidates(game, ids, overrides, titleDb, libretro)) {
                 let buf;
                 try {
                     buf = await download(candidate.url);
@@ -261,6 +287,95 @@ async function updateBoxart(games, manifest) {
     console.log('Box art found:', found, 'missing:', missed);
 }
 
+// Nintendo's servers use Nintendo's own certificate authority, which Node doesn't trust.
+// This only reads public catalogue data, so verification is skipped for these requests only.
+function fetchEshopTitle(region, uid) {
+    return new Promise((resolve, reject) => {
+        const req = https.get(`${SAMURAI}/${region}/title/${uid}`, {
+            rejectUnauthorized: false,
+            headers: { 'User-Agent': USER_AGENT },
+            timeout: 20000,
+        }, res => {
+            if (res.statusCode === 404) return res.resume(), resolve(null);
+            if (res.statusCode !== 200) return res.resume(), reject(new Error(`eShop returned ${res.statusCode}`));
+            let body = '';
+            res.setEncoding('utf8');
+            res.on('data', chunk => body += chunk);
+            res.on('end', () => resolve(body));
+        });
+        req.on('timeout', () => req.destroy(new Error('eShop request timed out')));
+        req.on('error', reject);
+    });
+}
+
+// Returns { type, new3ds }, null if unknown, or throws if the eShop couldn't be reached
+async function findType(game, ids, titleDb, libretro) {
+    const category = ids.map(id => TITLE_ID_TYPES[id.slice(0, 8)]).find(Boolean);
+    if (category) return { type: category };
+
+    const listed = ids.map(id => titleDb.get(id)).find(Boolean);
+    if (listed) {
+        await sleep(ESHOP_DELAY_MS);
+        const xml = await fetchEshopTitle(listed.region, listed.uid);
+        const [, platform, platformCategory] = (xml || '').match(/<platform id="(\d+)"[^>]*category="(\d+)"/) || [];
+        if (ESHOP_PLATFORMS[platform]) {
+            const [type, new3ds] = ESHOP_PLATFORMS[platform];
+            return { type, new3ds };
+        }
+        if (platformCategory === ESHOP_VIRTUAL_CONSOLE) return { type: 'vc' };
+    }
+
+    if (libretro.retail.has(simplifyName(game.title))) return { type: 'retail' };
+    if (libretro.digital.has(simplifyName(game.title))) return { type: 'eshop' };
+    return null;
+}
+
+async function updateTypes(games, manifest) {
+    const todo = games.filter(game => {
+        const ids = releaseIds(game);
+        if (!ids.length || ids.some(id => manifest.types[id])) return false;
+        const missed = manifest.typeMisses[ids[0]];
+        return !missed || daysSince(missed) >= RETRY_MISSES_AFTER_DAYS;
+    }).slice(0, LIMIT);
+
+    console.log(`Types: ${todo.length} titles to look up`);
+    if (!todo.length) return;
+
+    const [titleDb, libretro] = await Promise.all([getTitleDb(), getLibretroIndex()]);
+    const today = new Date().toISOString().slice(0, 10);
+    const found = {};
+    let failed = 0;
+
+    for (const [i, game] of todo.entries()) {
+        const ids = releaseIds(game);
+        let result;
+        try {
+            result = await findType(game, ids, titleDb, libretro);
+        } catch (err) {
+            // Retried next run
+            console.log(`[${i + 1}/${todo.length}] ! ${game.title}: ${err.message}`);
+            failed++;
+            continue;
+        }
+        if (result) {
+            for (const id of ids) {
+                manifest.types[id] = result.type;
+                if (result.new3ds) manifest.new3ds[id] = true;
+            }
+            delete manifest.typeMisses[ids[0]];
+            found[result.type] = (found[result.type] || 0) + 1;
+        } else {
+            manifest.typeMisses[ids[0]] = today;
+            found.unknown = (found.unknown || 0) + 1;
+        }
+        console.log(`[${i + 1}/${todo.length}] ${result ? result.type : '?'} ${game.title}`);
+
+        if (i % 25 === 24) await saveManifest(manifest);
+    }
+
+    console.log('Types found:', found, 'failed:', failed);
+}
+
 async function saveManifest(manifest) {
     await writeFile(MANIFEST_PATH, JSON.stringify(manifest, null, 1) + '\n');
 }
@@ -271,10 +386,14 @@ async function main() {
     manifest.art ??= {};
     manifest.artSources ??= {};
     manifest.artMisses ??= {};
+    manifest.types ??= {};
+    manifest.new3ds ??= {};
+    manifest.typeMisses ??= {};
 
     const games = await (await fetchOk(COMPAT_URL)).json();
     console.log(`${games.length} titles in the compatibility list`);
     try {
+        await updateTypes(games, manifest);
         await updateBoxart(games, manifest);
     } finally {
         await saveManifest(manifest);

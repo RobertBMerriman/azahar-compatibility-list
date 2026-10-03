@@ -117,8 +117,8 @@
                 </button>
             </div>
             
-            <div class="flex gap-2 min-w-[200px]">
-                <select id="statusFilter" class="w-full bg-slate-900/80 border border-slate-700 rounded-2xl px-6 py-4 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-white appearance-none cursor-pointer">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 md:flex md:gap-4">
+                <select id="statusFilter" aria-label="Filter by rating" class="w-full md:w-52 bg-slate-900/80 border border-slate-700 rounded-2xl px-4 md:px-6 py-4 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-white appearance-none cursor-pointer">
                     <option value="all">📊 All Ratings</option>
                     <option value="0">✅ Perfect</option>
                     <option value="1">🟢 Great</option>
@@ -127,6 +127,21 @@
                     <option value="4">🔴 Intro/Menu</option>
                     <option value="5">💀 Won't Boot</option>
                     <option value="99">❓ Not Tested</option>
+                </select>
+                <select id="typeFilter" aria-label="Filter by type" class="w-full md:w-52 bg-slate-900/80 border border-slate-700 rounded-2xl px-4 md:px-6 py-4 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-white appearance-none cursor-pointer">
+                    <option value="all">🎮 All Types</option>
+                    <option value="retail">💾 Cartridge</option>
+                    <option value="eshop">🛍️ eShop only</option>
+                    <option value="vc">📺 Virtual Console</option>
+                    <optgroup label="Virtual Console">
+                        <option value="vc-nes">NES</option>
+                        <option value="vc-snes">Super NES</option>
+                        <option value="vc-gb">Game Boy</option>
+                        <option value="vc-gbc">Game Boy Color</option>
+                        <option value="vc-gg">Game Gear</option>
+                    </optgroup>
+                    <option value="new3ds">⭐ New 3DS only</option>
+                    <option value="other">🧩 Demos &amp; other</option>
                 </select>
             </div>
         </div>
@@ -211,6 +226,24 @@
             99: { label: 'Not Tested', color: 'bg-slate-600', shadow: 'shadow-slate-500/10', icon: 'fa-question', desc: 'No compatibility reports yet.' }
         };
 
+        // Kinds of title, from data/games.json. The type filter matches the key or the group.
+        const GAME_TYPES = {
+            retail: { label: 'Cartridge', icon: 'fa-sd-card', group: 'retail' },
+            eshop: { label: 'eShop', icon: 'fa-bag-shopping', group: 'eshop' },
+            vc: { label: 'Virtual Console', icon: 'fa-tv', group: 'vc' },
+            'vc-nes': { label: 'Virtual Console', system: 'NES', icon: 'fa-tv', group: 'vc' },
+            'vc-snes': { label: 'Virtual Console', system: 'Super NES', icon: 'fa-tv', group: 'vc' },
+            'vc-gb': { label: 'Virtual Console', system: 'Game Boy', icon: 'fa-tv', group: 'vc' },
+            'vc-gbc': { label: 'Virtual Console', system: 'Game Boy Color', icon: 'fa-tv', group: 'vc' },
+            'vc-gg': { label: 'Virtual Console', system: 'Game Gear', icon: 'fa-tv', group: 'vc' },
+            demo: { label: 'Demo', icon: 'fa-flask', group: 'other' },
+            update: { label: 'Update', icon: 'fa-arrows-rotate', group: 'other' },
+            dlc: { label: 'DLC', icon: 'fa-puzzle-piece', group: 'other' },
+            video: { label: 'Video', icon: 'fa-film', group: 'other' },
+            system: { label: 'System app', icon: 'fa-gear', group: 'other' },
+            dsiware: { label: 'DSiWare', icon: 'fa-bag-shopping', group: 'other' },
+        };
+
         let masterData = [];
 
         // Helper to remove accents/diacritics (e.g., Pokémon -> Pokemon)
@@ -241,23 +274,28 @@
             try {
                 const [response, gameData] = await Promise.all([fetch(JSON_URL), fetchGameData()]);
                 const boxart = gameData.art || {};
+                const types = gameData.types || {};
+                const new3ds = gameData.new3ds || {};
                 if (!response.ok) throw new Error('Network response was not ok');
                 const data = await response.json();
 
                 masterData = (Array.isArray(data) ? data : Object.values(data)).map((item) => {
-                    const titleIds = (item.releases || []).map(r => r.id).filter(Boolean);
+                    const titleIds = (item.releases || []).map(r => r.id).filter(Boolean).map(id => id.toUpperCase());
+                    // Data for the first region that has it
+                    const lookup = (map) => map[titleIds.find(id => map[id])] || null;
                     const name = item.title ||
                                item.name ||
                                (item.info && (item.info.title || item.info.name)) ||
                                (item.information && (item.information.title || item.information.name)) ||
                                titleIds[0] || 'Unknown';
-                    const artId = titleIds.find(id => boxart[id.toUpperCase()]);
 
                     return {
                         title_ids: titleIds,
                         compatibility: item.compatibility !== undefined ? item.compatibility : 99,
                         name: name,
-                        art: artId ? boxart[artId.toUpperCase()] : null,
+                        art: lookup(boxart),
+                        type: lookup(types),
+                        new3ds: titleIds.some(id => new3ds[id]),
                         searchName: normalizeText(name),
                         searchId: normalizeText(titleIds.join(' '))
                     };
@@ -348,15 +386,29 @@
                             class="boxart col-start-1 row-start-1 w-full h-full object-contain bg-slate-900 opacity-0 transition-opacity duration-300">`
                     : '';
 
+                const type = GAME_TYPES[game.type];
+                const badge = (icon, label) => `
+                    <span class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-slate-800/80 border border-slate-700/60 px-2.5 py-0.5 text-[11px] font-semibold text-slate-400">
+                        ${icon ? `<i class="fa-solid ${icon}"></i>` : ''}${label}
+                    </span>`;
+                const badges = [
+                    type && badge(type.icon, type.label),
+                    type?.system && badge(null, type.system),
+                    game.new3ds && badge('fa-star', 'New 3DS'),
+                ].filter(Boolean).join('');
+
                 card.innerHTML = `
                     <div class="flex gap-4 mb-6">
                         <div class="shrink-0 w-28 aspect-[9/8] rounded-xl bg-slate-900/60 border border-slate-700/50 overflow-hidden grid place-items-center">
                             <i class="fa-solid fa-gamepad col-start-1 row-start-1 text-2xl text-slate-700"></i>
                             ${art}
                         </div>
-                        <h3 class="min-w-0 text-lg font-bold text-white leading-snug line-clamp-3" title="${tooltip}">
-                            ${name}
-                        </h3>
+                        <div class="min-w-0">
+                            <h3 class="text-lg font-bold text-white leading-snug line-clamp-3" title="${tooltip}">
+                                ${name}
+                            </h3>
+                            ${badges ? `<div class="mt-2 flex flex-wrap gap-1.5">${badges}</div>` : ''}
+                        </div>
                     </div>
 
                     <div class="mt-auto">
@@ -382,6 +434,7 @@
             const rawQuery = document.getElementById('searchInput').value;
             const query = normalizeText(rawQuery);
             const status = document.getElementById('statusFilter').value;
+            const type = document.getElementById('typeFilter').value;
 
             document.querySelectorAll('.stat-bubble').forEach(b => {
                 if (b.getAttribute('data-filter') === status) {
@@ -395,10 +448,16 @@
                 const nameMatch = g.searchName.includes(query) || 
                                  g.searchId.includes(query);
                 const statusMatch = status === 'all' || (g.compatibility !== undefined && g.compatibility.toString() === status);
-                return nameMatch && statusMatch;
+                return nameMatch && statusMatch && matchesType(g, type);
             });
             render(filtered);
             writeUrlState();
+        }
+
+        function matchesType(game, type) {
+            if (type === 'all') return true;
+            if (type === 'new3ds') return game.new3ds;
+            return game.type === type || GAME_TYPES[game.type]?.group === type;
         }
 
         // Keep the search and filters in the URL so results can be shared and survive a reload
@@ -408,6 +467,9 @@
             clearSearch.classList.toggle('hidden', !searchInput.value);
             const rating = params.get('rating');
             if (rating in THEMES) document.getElementById('statusFilter').value = rating;
+            const typeFilter = document.getElementById('typeFilter');
+            const type = params.get('type');
+            if ([...typeFilter.options].some(o => o.value === type)) typeFilter.value = type;
         }
 
         function writeUrlState() {
@@ -415,6 +477,8 @@
             if (searchInput.value) params.set('q', searchInput.value);
             const rating = document.getElementById('statusFilter').value;
             if (rating !== 'all') params.set('rating', rating);
+            const type = document.getElementById('typeFilter').value;
+            if (type !== 'all') params.set('type', type);
             const query = params.toString();
             try {
                 history.replaceState(null, '', query ? `?${query}` : location.pathname);
@@ -458,6 +522,7 @@
         }
 
         document.getElementById('statusFilter').addEventListener('change', filter);
+        document.getElementById('typeFilter').addEventListener('change', filter);
 
         // load/error don't bubble, so listen in the capture phase for every card's image
         const gameGrid = document.getElementById('gameGrid');
