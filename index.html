@@ -23,6 +23,13 @@
             border: 1px solid rgba(255, 255, 255, 0.1); 
         }
 
+        /* Skip layout and painting for cards that are off screen, which makes
+           re-rendering the full list several times faster */
+        #gameGrid > div {
+            content-visibility: auto;
+            contain-intrinsic-size: auto 194px;
+        }
+
         .card-hover {
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
