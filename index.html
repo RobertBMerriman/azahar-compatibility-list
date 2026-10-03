@@ -30,6 +30,13 @@
             contain-intrinsic-size: auto 266px;
         }
 
+        /* A faint wash of the rating's colour (--rating, an "r g b" triple) so cards
+           can be told apart at a glance */
+        .rating-tint {
+            background-image: linear-gradient(135deg, rgb(var(--rating) / 0.12), rgb(var(--rating) / 0.02) 55%);
+            border-color: rgb(var(--rating) / 0.25);
+        }
+
         .card-hover {
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
@@ -217,13 +224,13 @@
         const GAME_DATA_DIR = 'data/';
         
         const THEMES = {
-            0: { label: 'Perfect', color: 'bg-green-500', shadow: 'shadow-green-500/20', icon: 'fa-check-double', desc: 'Runs flawlessly at full speed.' },
-            1: { label: 'Great', color: 'bg-emerald-500', shadow: 'shadow-emerald-500/20', icon: 'fa-check', desc: 'Playable with minor audio/visual glitches.' },
-            2: { label: 'Okay', color: 'bg-yellow-500', shadow: 'shadow-yellow-500/20', icon: 'fa-circle-exclamation', desc: 'Significant glitches or performance drops.' },
-            3: { label: 'Bad', color: 'bg-orange-500', shadow: 'shadow-orange-500/20', icon: 'fa-triangle-exclamation', desc: 'Severe issues, difficult to play.' },
-            4: { label: 'Intro/Menu', color: 'bg-red-500', shadow: 'shadow-red-500/20', icon: 'fa-rectangle-list', desc: 'Loads menus but crashes during gameplay.' },
-            5: { label: 'Won\'t Boot', color: 'bg-slate-900 border-2 border-red-600', shadow: 'shadow-red-900/20', icon: 'fa-skull', desc: 'Does not load or crashes immediately.' },
-            99: { label: 'Not Tested', color: 'bg-slate-600', shadow: 'shadow-slate-500/10', icon: 'fa-question', desc: 'No compatibility reports yet.' }
+            0: { label: 'Perfect', color: 'bg-green-500', shadow: 'shadow-green-500/20', tint: '34 197 94', icon: 'fa-check-double', desc: 'Runs flawlessly at full speed.' },
+            1: { label: 'Great', color: 'bg-emerald-500', shadow: 'shadow-emerald-500/20', tint: '16 185 129', icon: 'fa-check', desc: 'Playable with minor audio/visual glitches.' },
+            2: { label: 'Okay', color: 'bg-yellow-500', shadow: 'shadow-yellow-500/20', tint: '234 179 8', icon: 'fa-circle-exclamation', desc: 'Significant glitches or performance drops.' },
+            3: { label: 'Bad', color: 'bg-orange-500', shadow: 'shadow-orange-500/20', tint: '249 115 22', icon: 'fa-triangle-exclamation', desc: 'Severe issues, difficult to play.' },
+            4: { label: 'Intro/Menu', color: 'bg-red-500', shadow: 'shadow-red-500/20', tint: '239 68 68', icon: 'fa-rectangle-list', desc: 'Loads menus but crashes during gameplay.' },
+            5: { label: 'Won\'t Boot', color: 'bg-slate-900 border-2 border-red-600', shadow: 'shadow-red-900/20', tint: '220 38 38', icon: 'fa-skull', desc: 'Does not load or crashes immediately.' },
+            99: { label: 'Not Tested', color: 'bg-slate-600', shadow: 'shadow-slate-500/10', tint: '100 116 139', icon: 'fa-question', desc: 'No compatibility reports yet.' }
         };
 
         // Kinds of title, from data/games.json. The type filter matches the key or the group.
@@ -378,7 +385,8 @@
                 const name = escapeHtml(game.name);
                 const tooltip = escapeHtml(`${game.name}\nTitle ID${game.title_ids.length > 1 ? 's' : ''}: ${game.title_ids.join('\n')}`);
                 const card = document.createElement('div');
-                card.className = 'glass rounded-3xl p-6 card-hover flex flex-col h-full';
+                card.className = 'glass rating-tint rounded-3xl p-6 card-hover flex flex-col h-full';
+                card.style.setProperty('--rating', theme.tint);
 
                 // The art box has a fixed size so cards don't jump when images load
                 const art = game.art
