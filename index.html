@@ -23,8 +23,7 @@
             border: 1px solid rgba(255, 255, 255, 0.1); 
         }
 
-        /* Skip layout and painting for cards that are off screen, which makes
-           re-rendering the full list several times faster */
+        /* Skip layout and painting for cards that are off screen */
         #gameGrid > div {
             content-visibility: auto;
             contain-intrinsic-size: auto 266px;
@@ -246,16 +245,20 @@
             99: { label: 'Not Tested', color: 'bg-slate-600', shadow: 'shadow-slate-500/10', tint: '100 116 139', text: 'text-slate-300', icon: 'fa-question', desc: 'No compatibility reports yet.' }
         };
 
+        function virtualConsole(system) {
+            return { label: 'Virtual Console', system, icon: 'fa-tv', group: 'vc' };
+        }
+
         // Kinds of title, from data/games.json. The type filter matches the key or the group.
         const GAME_TYPES = {
             retail: { label: 'Cartridge', icon: 'fa-sd-card', group: 'retail' },
             eshop: { label: 'eShop', icon: 'fa-bag-shopping', group: 'eshop' },
-            vc: { label: 'Virtual Console', icon: 'fa-tv', group: 'vc' },
-            'vc-nes': { label: 'Virtual Console', system: 'NES', icon: 'fa-tv', group: 'vc' },
-            'vc-snes': { label: 'Virtual Console', system: 'Super NES', icon: 'fa-tv', group: 'vc' },
-            'vc-gb': { label: 'Virtual Console', system: 'Game Boy', icon: 'fa-tv', group: 'vc' },
-            'vc-gbc': { label: 'Virtual Console', system: 'Game Boy Color', icon: 'fa-tv', group: 'vc' },
-            'vc-gg': { label: 'Virtual Console', system: 'Game Gear', icon: 'fa-tv', group: 'vc' },
+            vc: virtualConsole(),
+            'vc-nes': virtualConsole('NES'),
+            'vc-snes': virtualConsole('Super NES'),
+            'vc-gb': virtualConsole('Game Boy'),
+            'vc-gbc': virtualConsole('Game Boy Color'),
+            'vc-gg': virtualConsole('Game Gear'),
             demo: { label: 'Demo', icon: 'fa-flask', group: 'other' },
             update: { label: 'Update', icon: 'fa-arrows-rotate', group: 'other' },
             dlc: { label: 'DLC', icon: 'fa-puzzle-piece', group: 'other' },
@@ -265,6 +268,10 @@
         };
 
         let masterData = [];
+        let sortOrder = 'name';
+
+        const searchInput = document.getElementById('searchInput');
+        const clearSearch = document.getElementById('clearSearch');
 
         // Helper to remove accents/diacritics (e.g., Pokémon -> Pokemon)
         function normalizeText(text) {
@@ -293,11 +300,11 @@
         async function init() {
             try {
                 const [response, gameData] = await Promise.all([fetch(JSON_URL), fetchGameData()]);
+                if (!response.ok) throw new Error('Network response was not ok');
+                const data = await response.json();
                 const boxart = gameData.art || {};
                 const types = gameData.types || {};
                 const new3ds = gameData.new3ds || {};
-                if (!response.ok) throw new Error('Network response was not ok');
-                const data = await response.json();
 
                 masterData = (Array.isArray(data) ? data : Object.values(data)).map((item) => {
                     const titleIds = (item.releases || []).map(r => r.id).filter(Boolean).map(id => id.toUpperCase());
@@ -320,7 +327,6 @@
                         searchId: normalizeText(titleIds.join(' '))
                     };
                 });
-
 
                 document.getElementById('loading').classList.add('hidden');
                 document.getElementById('statsPanel').classList.replace('opacity-0', 'opacity-100');
@@ -457,8 +463,7 @@
         }
 
         function filter() {
-            const rawQuery = document.getElementById('searchInput').value;
-            const query = normalizeText(rawQuery);
+            const query = normalizeText(searchInput.value);
             const status = document.getElementById('statusFilter').value;
             const type = document.getElementById('typeFilter').value;
 
@@ -486,9 +491,6 @@
             return game.type === type || GAME_TYPES[game.type]?.group === type;
         }
 
-        // Keep the search and filters in the URL so results can be shared and survive a reload
-        let sortOrder = 'name';
-
         // Alphabetical, or by rating (best first, Not Tested last) and alphabetical within each.
         // Moves the existing cards so the page order matches what's shown.
         function sortCards() {
@@ -500,12 +502,13 @@
             });
         }
 
+        // Keep the search and filters in the URL so results can be shared and survive a reload
         function readUrlState() {
             const params = new URLSearchParams(location.search);
             searchInput.value = params.get('q') || '';
             clearSearch.classList.toggle('hidden', !searchInput.value);
             const rating = params.get('rating');
-            if (rating in THEMES) document.getElementById('statusFilter').value = rating;
+            if (Object.hasOwn(THEMES, rating)) document.getElementById('statusFilter').value = rating;
             const typeFilter = document.getElementById('typeFilter');
             const type = params.get('type');
             if ([...typeFilter.options].some(o => o.value === type)) typeFilter.value = type;
@@ -524,12 +527,10 @@
             try {
                 history.replaceState(null, '', query ? `?${query}` : location.pathname);
             } catch {
-                // Not allowed for pages opened from disk
+                // Not allowed for pages opened from disk, and Safari limits how often it's called
             }
         }
 
-        const searchInput = document.getElementById('searchInput');
-        const clearSearch = document.getElementById('clearSearch');
         let searchTimer;
 
         // Wait for a pause in typing instead of re-rendering every card on each keystroke

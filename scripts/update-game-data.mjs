@@ -85,6 +85,11 @@ async function readJson(file, fallback) {
 const releaseIds = game => (game.releases || []).map(r => r.id && r.id.toUpperCase()).filter(Boolean);
 const productCode = code => (code.match(/([A-Z0-9]{4})$/) || [])[1];
 const daysSince = date => (Date.now() - Date.parse(date)) / 86400000;
+// Position in a preference list, with anything not listed sorted last
+const preference = (list, matches) => {
+    const i = list.findIndex(matches);
+    return i === -1 ? list.length : i;
+};
 
 // Title ID -> { code: product code such as "AMKE", region, uid: eShop content ID }
 async function loadTitleDb() {
@@ -110,13 +115,14 @@ const simplifyName = name => name.normalize('NFKD').replace(/\(.*?\)|\[.*?\]/g, 
 async function loadLibretroIndex() {
     const headers = process.env.GITHUB_TOKEN ? { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` } : {};
     const tree = await (await fetchOk(LIBRETRO_TREE, headers)).json();
+    if (tree.truncated) console.warn('The libretro-thumbnails file list was truncated, so some box art may be missed');
     const available = new Set(tree.tree
         .filter(f => f.path.startsWith('Named_Boxarts/') && f.path.endsWith('.png'))
         .map(f => f.path.slice('Named_Boxarts/'.length, -'.png'.length)));
 
     // libretro replaces these characters in thumbnail file names
     const fileName = name => name.replace(/[&*/:`<>?\\|"]/g, '_');
-    const regionRank = name => ['(USA', '(World', '(Europe'].findIndex(r => name.includes(r)) >>> 0;
+    const regionRank = name => preference(['(USA', '(World', '(Europe'], region => name.includes(region));
 
     const byCode = new Map();
     const retail = new Set();
@@ -147,7 +153,7 @@ function findCandidates(game, ids, overrides, titleDb, libretro) {
     const candidates = ids.filter(id => overrides[id]).map(id => ({ source: 'override', url: overrides[id] }));
 
     const codes = [...new Set(ids.map(id => titleDb.get(id)?.code).filter(Boolean))];
-    const rank = code => REGION_PREFERENCE.indexOf(code[3]) >>> 0;
+    const rank = code => preference(REGION_PREFERENCE, region => region === code[3]);
     codes.sort((a, b) => rank(a) - rank(b));
 
     for (const code of codes) {
@@ -390,7 +396,8 @@ async function main() {
     manifest.new3ds ??= {};
     manifest.typeMisses ??= {};
 
-    const games = await (await fetchOk(COMPAT_URL)).json();
+    const list = await (await fetchOk(COMPAT_URL)).json();
+    const games = Array.isArray(list) ? list : Object.values(list);
     console.log(`${games.length} titles in the compatibility list`);
     try {
         await updateTypes(games, manifest);
