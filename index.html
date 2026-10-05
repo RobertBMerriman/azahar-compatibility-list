@@ -212,7 +212,13 @@
             <p class="text-slate-400 font-medium animate-pulse text-lg">Syncing with Azahar database...</p>
         </div>
 
-        <p id="resultCount" class="text-sm text-slate-500 mb-4 min-h-[1.25rem]"></p>
+        <div class="flex items-center justify-between gap-4 mb-4">
+            <p id="resultCount" class="text-sm text-slate-500"></p>
+            <div id="sortOrder" role="group" aria-label="Sort by" class="flex shrink-0 items-center gap-1 rounded-xl border border-slate-700 bg-slate-900/80 p-1 text-sm">
+                <button type="button" data-sort="name" aria-pressed="true" class="rounded-lg px-3 py-2 sm:py-1.5 font-semibold text-slate-400 hover:text-white aria-pressed:bg-slate-700 aria-pressed:text-white transition-colors">A–Z</button>
+                <button type="button" data-sort="rating" aria-pressed="false" class="rounded-lg px-3 py-2 sm:py-1.5 font-semibold text-slate-400 hover:text-white aria-pressed:bg-slate-700 aria-pressed:text-white transition-colors">Rating</button>
+            </div>
+        </div>
 
         <!-- Results Grid -->
         <div id="gameGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -273,6 +279,7 @@
         };
 
         let masterData = [];
+        let sortOrder = 'name';
 
         const searchInput = document.getElementById('searchInput');
         const clearSearch = document.getElementById('clearSearch');
@@ -332,12 +339,11 @@
                     };
                 });
 
-                masterData.sort((a, b) => a.name.localeCompare(b.name));
-
                 document.getElementById('loading').classList.add('hidden');
                 document.getElementById('statsPanel').classList.replace('opacity-0', 'opacity-100');
                 
                 buildCards();
+                sortCards();
                 filter();
             } catch (err) {
                 document.getElementById('loading').innerHTML = `
@@ -381,14 +387,13 @@
         }
 
         // The Tailwind CDN rescans every element on the page whenever an element is added
-        // or a class changes, which is slow with ~1200 cards. So cards are built once, and
-        // filtering only changes styles, text and classes that are already set (toggle() with
-        // a force argument doesn't touch the attribute when nothing changes).
+        // or a class changes, which is slow with ~1200 cards. So cards are built once (and
+        // added to the page by sortCards()), and filtering only changes styles, text and
+        // classes that are already set (toggle() with a force argument doesn't touch the
+        // attribute when nothing changes).
         function buildCards() {
-            const grid = document.getElementById('gameGrid');
             masterData.forEach((game) => {
                 game.card = createCard(game);
-                grid.appendChild(game.card);
             });
         }
 
@@ -489,6 +494,17 @@
             return game.type === type || GAME_TYPES[game.type]?.group === type;
         }
 
+        // Alphabetical, or by rating (best first, Not Tested last) and alphabetical within each.
+        // Moves the existing cards so the page order matches what's shown.
+        function sortCards() {
+            const byName = (a, b) => a.name.localeCompare(b.name);
+            masterData.sort(sortOrder === 'rating' ? (a, b) => a.compatibility - b.compatibility || byName(a, b) : byName);
+            document.getElementById('gameGrid').append(...masterData.map(g => g.card));
+            document.querySelectorAll('#sortOrder button').forEach(b => {
+                b.setAttribute('aria-pressed', b.dataset.sort === sortOrder);
+            });
+        }
+
         let searchTimer;
 
         // Wait for a pause in typing instead of re-rendering every card on each keystroke
@@ -529,6 +545,13 @@
             if (!bubble) return;
             document.getElementById('statusFilter').value = bubble.dataset.filter;
             filter();
+        });
+
+        document.getElementById('sortOrder').addEventListener('click', (e) => {
+            const button = e.target.closest('button');
+            if (!button || button.dataset.sort === sortOrder) return;
+            sortOrder = button.dataset.sort;
+            sortCards();
         });
 
         // load/error don't bubble, so listen in the capture phase for every card's image
