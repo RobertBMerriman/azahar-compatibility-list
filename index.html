@@ -202,7 +202,13 @@
             <p class="text-slate-400 font-medium animate-pulse text-lg">Syncing with Azahar database...</p>
         </div>
 
-        <p id="resultCount" class="text-sm text-slate-500 mb-4 min-h-[1.25rem]"></p>
+        <div class="flex items-center justify-between gap-4 mb-4">
+            <p id="resultCount" class="text-sm text-slate-500"></p>
+            <div id="sortOrder" role="group" aria-label="Sort by" class="flex shrink-0 items-center gap-1 rounded-xl border border-slate-700 bg-slate-900/80 p-1 text-sm">
+                <button type="button" data-sort="name" aria-pressed="true" class="rounded-lg px-3 py-2 sm:py-1.5 font-semibold text-slate-400 hover:text-white aria-pressed:bg-slate-700 aria-pressed:text-white transition-colors">A–Z</button>
+                <button type="button" data-sort="rating" aria-pressed="false" class="rounded-lg px-3 py-2 sm:py-1.5 font-semibold text-slate-400 hover:text-white aria-pressed:bg-slate-700 aria-pressed:text-white transition-colors">Rating</button>
+            </div>
+        </div>
 
         <!-- Results Grid -->
         <div id="gameGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -315,13 +321,13 @@
                     };
                 });
 
-                masterData.sort((a, b) => a.name.localeCompare(b.name));
 
                 document.getElementById('loading').classList.add('hidden');
                 document.getElementById('statsPanel').classList.replace('opacity-0', 'opacity-100');
                 
                 buildCards();
                 readUrlState();
+                sortCards();
                 filter();
             } catch (err) {
                 document.getElementById('loading').innerHTML = `
@@ -481,6 +487,19 @@
         }
 
         // Keep the search and filters in the URL so results can be shared and survive a reload
+        let sortOrder = 'name';
+
+        // Alphabetical, or by rating (best first, Not Tested last) and alphabetical within each.
+        // Moves the existing cards so the page order matches what's shown.
+        function sortCards() {
+            const byName = (a, b) => a.name.localeCompare(b.name);
+            masterData.sort(sortOrder === 'rating' ? (a, b) => a.compatibility - b.compatibility || byName(a, b) : byName);
+            document.getElementById('gameGrid').append(...masterData.map(g => g.card));
+            document.querySelectorAll('#sortOrder button').forEach(b => {
+                b.setAttribute('aria-pressed', b.dataset.sort === sortOrder);
+            });
+        }
+
         function readUrlState() {
             const params = new URLSearchParams(location.search);
             searchInput.value = params.get('q') || '';
@@ -490,6 +509,7 @@
             const typeFilter = document.getElementById('typeFilter');
             const type = params.get('type');
             if ([...typeFilter.options].some(o => o.value === type)) typeFilter.value = type;
+            if (params.get('sort') === 'rating') sortOrder = 'rating';
         }
 
         function writeUrlState() {
@@ -499,6 +519,7 @@
             if (rating !== 'all') params.set('rating', rating);
             const type = document.getElementById('typeFilter').value;
             if (type !== 'all') params.set('type', type);
+            if (sortOrder !== 'name') params.set('sort', sortOrder);
             const query = params.toString();
             try {
                 history.replaceState(null, '', query ? `?${query}` : location.pathname);
@@ -543,6 +564,14 @@
 
         document.getElementById('statusFilter').addEventListener('change', filter);
         document.getElementById('typeFilter').addEventListener('change', filter);
+
+        document.getElementById('sortOrder').addEventListener('click', (e) => {
+            const button = e.target.closest('button');
+            if (!button || button.dataset.sort === sortOrder) return;
+            sortOrder = button.dataset.sort;
+            sortCards();
+            writeUrlState();
+        });
 
         // load/error don't bubble, so listen in the capture phase for every card's image
         const gameGrid = document.getElementById('gameGrid');
