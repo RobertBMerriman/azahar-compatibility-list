@@ -4,6 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Azahar Compatibility List</title>
+    <!-- Start downloading the data straight away instead of after Tailwind has loaded.
+         These must match the URLs fetched in init(). -->
+    <link rel="preload" href="https://raw.githubusercontent.com/azahar-emu/compatibility-list/refs/heads/master/compatibility_list.json" as="fetch" crossorigin>
+    <script>
+        // Pages opened from disk can't load data/ (see fetchGameData), so only preload it over HTTP
+        if (location.protocol !== 'file:') {
+            document.head.append(Object.assign(document.createElement('link'), {
+                rel: 'preload', href: 'data/games.json', as: 'fetch', crossOrigin: 'anonymous',
+            }));
+        }
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -385,11 +396,10 @@
         // or a class changes, which is slow with ~1200 cards. So cards are built once, and
         // filtering only changes styles, text and classes that are already set (toggle() with
         // a force argument doesn't touch the attribute when nothing changes).
+        // Cards are added to the page by sortCards()
         function buildCards() {
-            const grid = document.getElementById('gameGrid');
             masterData.forEach((game) => {
                 game.card = createCard(game);
-                grid.appendChild(game.card);
             });
         }
 
