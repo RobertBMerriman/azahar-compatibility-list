@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Builds data/games.json, which the site reads for extra information about each title in
 // Azahar's compatibility list. Everything is keyed by Title ID, so matches are exact.
+// data/lookup-state.json records where art came from and what couldn't be found, for later runs.
 //
 // Box art is saved as small WebP thumbnails in data/boxart/, using these sources in order:
 //   1. data/boxart-overrides.json  { "<Title ID>": "<image URL>" } for manual fixes
@@ -66,7 +67,10 @@ const args = process.argv.slice(2);
 const argValue = name => { const i = args.indexOf(name); return i === -1 ? undefined : args[i + 1]; };
 const OUT_DIR = argValue('--out') ?? 'data';
 const LIMIT = Number(argValue('--limit') ?? Infinity);
-const MANIFEST_PATH = path.join(OUT_DIR, 'games.json');
+const GAMES_PATH = path.join(OUT_DIR, 'games.json');
+const STATE_PATH = path.join(OUT_DIR, 'lookup-state.json');
+// What the site reads; everything else in the manifest is only needed by this script
+const PUBLIC_KEYS = ['art', 'types', 'new3ds'];
 const BOXART_DIR = 'boxart';
 
 async function fetchOk(url, headers = {}) {
@@ -382,13 +386,17 @@ async function updateTypes(games, manifest) {
     console.log('Types found:', found, 'failed:', failed);
 }
 
+// Kept in two files so the site doesn't download the bookkeeping
 async function saveManifest(manifest) {
-    await writeFile(MANIFEST_PATH, JSON.stringify(manifest, null, 1) + '\n');
+    const pick = keys => Object.fromEntries(keys.map(key => [key, manifest[key]]));
+    const stateKeys = Object.keys(manifest).filter(key => !PUBLIC_KEYS.includes(key));
+    await writeFile(GAMES_PATH, JSON.stringify(pick(PUBLIC_KEYS), null, 1) + '\n');
+    await writeFile(STATE_PATH, JSON.stringify(pick(stateKeys), null, 1) + '\n');
 }
 
 async function main() {
     await mkdir(OUT_DIR, { recursive: true });
-    const manifest = await readJson(MANIFEST_PATH, {});
+    const manifest = { ...await readJson(STATE_PATH, {}), ...await readJson(GAMES_PATH, {}) };
     manifest.art ??= {};
     manifest.artSources ??= {};
     manifest.artMisses ??= {};

@@ -6,7 +6,8 @@
 ## Box art and game types
 
 Box art is matched to each game by its Title ID and stored in `data/boxart/` as small WebP thumbnails, so the site never calls a third-party API.
-`data/games.json` maps Title IDs to images; games without art show a placeholder.
+`data/games.json` maps Title IDs to images and types; games without art show a placeholder.
+`data/lookup-state.json` records where each image came from and which games couldn't be found.
 
 The [Update game data](.github/workflows/update-game-data.yml) workflow runs daily (or manually from the Actions tab) and only looks up games it hasn't seen before.
 Sources, in order: [GameTDB](https://www.gametdb.com/), then [libretro-thumbnails](https://github.com/libretro-thumbnails/Nintendo_-_Nintendo_3DS).
