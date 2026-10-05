@@ -73,7 +73,7 @@
         }
 
         /* The selected bubble is outlined and faintly filled in its own colour (--bubble) */
-        .stat-bubble.active {
+        .stat-bubble[aria-pressed="true"] {
             background: rgb(var(--bubble) / 0.15);
             border-color: rgb(var(--bubble));
         }
@@ -156,6 +156,8 @@
                     <option value="all">🎮 All Types</option>
                     <option value="retail">💾 Cartridge</option>
                     <option value="eshop">🛍️ eShop only</option>
+                    <option value="new3ds">⭐ New 3DS only</option>
+                    <option value="other">🧩 Demos &amp; other</option>
                     <option value="vc">📺 Virtual Console</option>
                     <optgroup label="Virtual Console">
                         <option value="vc-nes">NES</option>
@@ -164,46 +166,44 @@
                         <option value="vc-gbc">Game Boy Color</option>
                         <option value="vc-gg">Game Gear</option>
                     </optgroup>
-                    <option value="new3ds">⭐ New 3DS only</option>
-                    <option value="other">🧩 Demos &amp; other</option>
                 </select>
             </div>
         </div>
 
         <!-- Detailed Stats Summary (Interactive Bubbles) -->
-        <div id="statsPanel" class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 mb-10 opacity-0 transition-opacity duration-500">
-            <div onclick="quickFilter('all')" style="--bubble: 148 163 184" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 cursor-pointer active" data-filter="all">
-                <p class="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Total</p>
-                <p id="stat_total" class="text-lg font-bold text-white">-</p>
-            </div>
-            <div onclick="quickFilter('0')" style="--bubble: 34 197 94" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-green-500 cursor-pointer" data-filter="0">
-                <p class="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Perfect</p>
-                <p id="stat_0" class="text-lg font-bold text-green-400">-</p>
-            </div>
-            <div onclick="quickFilter('1')" style="--bubble: 45 212 191" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-teal-400 cursor-pointer" data-filter="1">
-                <p class="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Great</p>
-                <p id="stat_1" class="text-lg font-bold text-teal-400">-</p>
-            </div>
-            <div onclick="quickFilter('2')" style="--bubble: 234 179 8" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-yellow-500 cursor-pointer" data-filter="2">
-                <p class="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Okay</p>
-                <p id="stat_2" class="text-lg font-bold text-yellow-400">-</p>
-            </div>
-            <div onclick="quickFilter('3')" style="--bubble: 249 115 22" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-orange-500 cursor-pointer" data-filter="3">
-                <p class="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Bad</p>
-                <p id="stat_3" class="text-lg font-bold text-orange-400">-</p>
-            </div>
-            <div onclick="quickFilter('4')" style="--bubble: 239 68 68" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-red-500 cursor-pointer" data-filter="4">
-                <p class="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Intro</p>
-                <p id="stat_4" class="text-lg font-bold text-red-400">-</p>
-            </div>
-            <div onclick="quickFilter('5')" style="--bubble: 220 38 38" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-red-600 cursor-pointer" data-filter="5">
-                <p class="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">No Boot</p>
-                <p id="stat_5" class="text-lg font-bold text-red-600">-</p>
-            </div>
-            <div onclick="quickFilter('99')" style="--bubble: 100 116 139" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-slate-500 cursor-pointer" data-filter="99">
-                <p class="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Untested</p>
-                <p id="stat_99" class="text-lg font-bold text-slate-400">-</p>
-            </div>
+        <div id="statsPanel" role="group" aria-label="Filter by rating" class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 mb-10 opacity-0 transition-opacity duration-500">
+            <button type="button" data-filter="all" aria-pressed="true" style="--bubble: 148 163 184" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                <span class="block text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Total</span>
+                <span id="stat_total" class="block text-lg font-bold text-white">-</span>
+            </button>
+            <button type="button" data-filter="0" aria-pressed="false" style="--bubble: 34 197 94" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-green-500 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                <span class="block text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Perfect</span>
+                <span id="stat_0" class="block text-lg font-bold text-green-400">-</span>
+            </button>
+            <button type="button" data-filter="1" aria-pressed="false" style="--bubble: 45 212 191" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-teal-400 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                <span class="block text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Great</span>
+                <span id="stat_1" class="block text-lg font-bold text-teal-400">-</span>
+            </button>
+            <button type="button" data-filter="2" aria-pressed="false" style="--bubble: 234 179 8" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-yellow-500 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                <span class="block text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Okay</span>
+                <span id="stat_2" class="block text-lg font-bold text-yellow-400">-</span>
+            </button>
+            <button type="button" data-filter="3" aria-pressed="false" style="--bubble: 249 115 22" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-orange-500 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                <span class="block text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Bad</span>
+                <span id="stat_3" class="block text-lg font-bold text-orange-400">-</span>
+            </button>
+            <button type="button" data-filter="4" aria-pressed="false" style="--bubble: 239 68 68" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-red-500 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                <span class="block text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Intro</span>
+                <span id="stat_4" class="block text-lg font-bold text-red-400">-</span>
+            </button>
+            <button type="button" data-filter="5" aria-pressed="false" style="--bubble: 220 38 38" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-red-600 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                <span class="block text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">No Boot</span>
+                <span id="stat_5" class="block text-lg font-bold text-red-600">-</span>
+            </button>
+            <button type="button" data-filter="99" aria-pressed="false" style="--bubble: 100 116 139" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-slate-500 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                <span class="block text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Untested</span>
+                <span id="stat_99" class="block text-lg font-bold text-slate-400">-</span>
+            </button>
         </div>
 
         <!-- Loading State -->
@@ -213,7 +213,14 @@
         </div>
 
         <div class="flex items-center justify-between gap-4 mb-4">
-            <p id="resultCount" class="text-sm text-slate-500"></p>
+            <div class="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
+                <p id="resultCount" class="text-sm text-slate-500"></p>
+                <!-- Shown by writeUrlState() whenever anything differs from the defaults -->
+                <button type="button" id="resetFilters" hidden
+                    class="-ml-2 rounded-lg px-2 py-1 text-sm text-slate-400 hover:text-white hover:bg-slate-800/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 transition-colors">
+                    <i class="fa-solid fa-rotate-left mr-1 text-xs"></i>Reset
+                </button>
+            </div>
             <div id="sortOrder" role="group" aria-label="Sort by" class="flex shrink-0 items-center gap-1 rounded-xl border border-slate-700 bg-slate-900/80 p-1 text-sm">
                 <button type="button" data-sort="name" aria-pressed="true" class="rounded-lg px-3 py-2 sm:py-1.5 font-semibold text-slate-400 hover:text-white aria-pressed:bg-slate-700 aria-pressed:text-white transition-colors">A–Z</button>
                 <button type="button" data-sort="rating" aria-pressed="false" class="rounded-lg px-3 py-2 sm:py-1.5 font-semibold text-slate-400 hover:text-white aria-pressed:bg-slate-700 aria-pressed:text-white transition-colors">Rating</button>
@@ -387,16 +394,11 @@
             setText(document.getElementById('stat_99'), counts[99]);
         }
 
-        function quickFilter(status) {
-            document.getElementById('statusFilter').value = status;
-            filter();
-        }
-
         // The Tailwind CDN rescans every element on the page whenever an element is added
-        // or a class changes, which is slow with ~1200 cards. So cards are built once, and
-        // filtering only changes styles, text and classes that are already set (toggle() with
-        // a force argument doesn't touch the attribute when nothing changes).
-        // Cards are added to the page by sortCards()
+        // or a class changes, which is slow with ~1200 cards. So cards are built once (and
+        // added to the page by sortCards()), and filtering only changes styles, text and
+        // classes that are already set (toggle() with a force argument doesn't touch the
+        // attribute when nothing changes).
         function buildCards() {
             masterData.forEach((game) => {
                 game.card = createCard(game);
@@ -478,7 +480,7 @@
             const type = document.getElementById('typeFilter').value;
 
             document.querySelectorAll('.stat-bubble').forEach(b => {
-                b.classList.toggle('active', b.getAttribute('data-filter') === status);
+                b.setAttribute('aria-pressed', b.dataset.filter === status);
             });
 
             const matching = masterData.filter(g => {
@@ -534,6 +536,7 @@
             if (type !== 'all') params.set('type', type);
             if (sortOrder !== 'name') params.set('sort', sortOrder);
             const query = params.toString();
+            document.getElementById('resetFilters').hidden = !query;
             try {
                 history.replaceState(null, '', query ? `?${query}` : location.pathname);
             } catch {
@@ -576,12 +579,31 @@
         document.getElementById('statusFilter').addEventListener('change', filter);
         document.getElementById('typeFilter').addEventListener('change', filter);
 
+        document.getElementById('statsPanel').addEventListener('click', (e) => {
+            const bubble = e.target.closest('.stat-bubble');
+            if (!bubble) return;
+            document.getElementById('statusFilter').value = bubble.dataset.filter;
+            filter();
+        });
+
         document.getElementById('sortOrder').addEventListener('click', (e) => {
             const button = e.target.closest('button');
             if (!button || button.dataset.sort === sortOrder) return;
             sortOrder = button.dataset.sort;
             sortCards();
             writeUrlState();
+        });
+
+        document.getElementById('resetFilters').addEventListener('click', () => {
+            searchInput.value = '';
+            clearSearch.classList.toggle('hidden', true);
+            document.getElementById('statusFilter').value = 'all';
+            document.getElementById('typeFilter').value = 'all';
+            if (sortOrder !== 'name') {
+                sortOrder = 'name';
+                sortCards();
+            }
+            filter();
         });
 
         // load/error don't bubble, so listen in the capture phase for every card's image
