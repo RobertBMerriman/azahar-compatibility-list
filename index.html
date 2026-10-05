@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Azahar Compatibility List</title>
+    <!-- Start downloading the compatibility list straight away instead of after Tailwind
+         has loaded. This must match JSON_URL. -->
+    <link rel="preload" href="https://raw.githubusercontent.com/azahar-emu/compatibility-list/refs/heads/master/compatibility_list.json" as="fetch" crossorigin>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -21,6 +24,12 @@
             backdrop-filter: blur(12px); 
             -webkit-backdrop-filter: blur(12px);
             border: 1px solid rgba(255, 255, 255, 0.1); 
+        }
+
+        /* Skip layout and painting for cards that are off screen */
+        #gameGrid > div {
+            content-visibility: auto;
+            contain-intrinsic-size: auto 194px;
         }
 
         .card-hover {
@@ -198,6 +207,9 @@
 
         let masterData = [];
 
+        const searchInput = document.getElementById('searchInput');
+        const clearSearch = document.getElementById('clearSearch');
+
         // Helper to remove accents/diacritics (e.g., Pokémon -> Pokemon)
         function normalizeText(text) {
             return text.normalize('NFD').replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -236,7 +248,8 @@
                 document.getElementById('statsPanel').classList.replace('opacity-0', 'opacity-100');
                 
                 updateStats(masterData);
-                render(masterData);
+                buildCards();
+                filter();
             } catch (err) {
                 document.getElementById('loading').innerHTML = `
                     <div class="glass p-8 rounded-3xl border-red-500/50 max-w-md mx-auto">
@@ -248,6 +261,12 @@
                 `;
                 console.error('Fetch Error:', err);
             }
+        }
+
+        // Updates the existing text node rather than replacing it, as the Tailwind CDN rescans
+        // the whole page whenever an element or text node is added
+        function setText(element, text) {
+            (element.firstChild || element.appendChild(document.createTextNode(''))).data = text;
         }
 
         function updateStats(data) {
@@ -274,75 +293,69 @@
 
         function quickFilter(status) {
             document.getElementById('statusFilter').value = status;
-            
-            document.querySelectorAll('.stat-bubble').forEach(b => {
-                if (b.getAttribute('data-filter') === status) {
-                    b.classList.add('active');
-                } else {
-                    b.classList.remove('active');
-                }
-            });
-            
             filter();
         }
 
-        function render(list) {
+        // The Tailwind CDN rescans every element on the page whenever an element is added
+        // or a class changes, which is slow with ~1200 cards. So cards are built once, and
+        // filtering only changes styles, text and classes that are already set (toggle() with
+        // a force argument doesn't touch the attribute when nothing changes).
+        function buildCards() {
             const grid = document.getElementById('gameGrid');
-            const empty = document.getElementById('noResults');
-            grid.innerHTML = '';
-
-            document.getElementById('resultCount').innerText = list.length === masterData.length
-                ? `${list.length} titles`
-                : `Showing ${list.length} of ${masterData.length} titles`;
-
-            if (list.length === 0) {
-                empty.classList.remove('hidden');
-                return;
-            }
-            empty.classList.add('hidden');
-
-            list.forEach((game) => {
-                const theme = THEMES[game.compatibility] || THEMES[99];
-                const name = escapeHtml(game.name);
-                const tooltip = escapeHtml(`${game.name}\nTitle ID${game.title_ids.length > 1 ? 's' : ''}: ${game.title_ids.join('\n')}`);
-                const card = document.createElement('div');
-                card.className = 'glass rounded-3xl p-6 card-hover flex flex-col h-full';
-
-                card.innerHTML = `
-                    <h3 class="text-xl font-bold mb-6 text-white leading-snug line-clamp-2" title="${tooltip}">
-                        ${name}
-                    </h3>
-
-                    <div class="mt-auto">
-                        <div class="flex items-center gap-4 mb-3">
-                            <div class="w-12 h-12 rounded-2xl ${theme.color} ${theme.shadow} flex items-center justify-center text-white shadow-lg text-lg">
-                                <i class="fa-solid ${theme.icon}"></i>
-                            </div>
-                            <div>
-                                <p class="text-sm font-black text-slate-100 uppercase tracking-wide">${theme.label}</p>
-                                <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Rating: ${game.compatibility}</p>
-                            </div>
-                        </div>
-                        <p class="text-xs text-slate-400 leading-relaxed italic border-t border-slate-700/50 pt-3">
-                            ${theme.desc}
-                        </p>
-                    </div>
-                `;
-                grid.appendChild(card);
+            masterData.forEach((game) => {
+                game.card = createCard(game);
+                grid.appendChild(game.card);
             });
         }
 
+        function createCard(game) {
+            const theme = THEMES[game.compatibility] || THEMES[99];
+            const name = escapeHtml(game.name);
+            const tooltip = escapeHtml(`${game.name}\nTitle ID${game.title_ids.length > 1 ? 's' : ''}: ${game.title_ids.join('\n')}`);
+            const card = document.createElement('div');
+            card.className = 'glass rounded-3xl p-6 card-hover flex flex-col h-full';
+
+            card.innerHTML = `
+                <h3 class="text-xl font-bold mb-6 text-white leading-snug line-clamp-2" title="${tooltip}">
+                    ${name}
+                </h3>
+
+                <div class="mt-auto">
+                    <div class="flex items-center gap-4 mb-3">
+                        <div class="w-12 h-12 rounded-2xl ${theme.color} ${theme.shadow} flex items-center justify-center text-white shadow-lg text-lg">
+                            <i class="fa-solid ${theme.icon}"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm font-black text-slate-100 uppercase tracking-wide">${theme.label}</p>
+                            <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Rating: ${game.compatibility}</p>
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-400 leading-relaxed italic border-t border-slate-700/50 pt-3">
+                        ${theme.desc}
+                    </p>
+                </div>
+            `;
+            return card;
+        }
+
+        function render(list) {
+            const visible = new Set(list);
+            masterData.forEach((game) => {
+                game.card.style.display = visible.has(game) ? '' : 'none';
+            });
+
+            setText(document.getElementById('resultCount'), list.length === masterData.length
+                ? `${list.length} titles`
+                : `Showing ${list.length} of ${masterData.length} titles`);
+            document.getElementById('noResults').classList.toggle('hidden', list.length > 0);
+        }
+
         function filter() {
-            const rawQuery = document.getElementById('searchInput').value;
-            const query = normalizeText(rawQuery);
+            const query = normalizeText(searchInput.value);
             const status = document.getElementById('statusFilter').value;
 
             document.querySelectorAll('.stat-bubble').forEach(b => {
-                if (b.getAttribute('data-filter') === status) {
-                    b.classList.add('active');
-                } else {
-                    b.classList.remove('active');
-                }
+                b.classList.toggle('active', b.getAttribute('data-filter') === status);
             });
 
             const filtered = masterData.filter(g => {
@@ -354,8 +367,6 @@
             render(filtered);
         }
 
-        const searchInput = document.getElementById('searchInput');
-        const clearSearch = document.getElementById('clearSearch');
         let searchTimer;
 
         // Wait for a pause in typing instead of re-rendering every card on each keystroke
@@ -383,7 +394,7 @@
 
         function clearSearchInput() {
             searchInput.value = '';
-            clearSearch.classList.add('hidden');
+            clearSearch.classList.toggle('hidden', true);
             clearTimeout(searchTimer);
             filter();
         }
