@@ -73,7 +73,7 @@
         }
 
         /* The selected bubble is outlined and faintly filled in its own colour (--bubble) */
-        .stat-bubble.active {
+        .stat-bubble[aria-pressed="true"] {
             background: rgb(var(--bubble) / 0.15);
             border-color: rgb(var(--bubble));
         }
@@ -171,39 +171,39 @@
         </div>
 
         <!-- Detailed Stats Summary (Interactive Bubbles) -->
-        <div id="statsPanel" class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 mb-10 opacity-0 transition-opacity duration-500">
-            <div onclick="quickFilter('all')" style="--bubble: 148 163 184" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 cursor-pointer active" data-filter="all">
-                <p class="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Total</p>
-                <p id="stat_total" class="text-lg font-bold text-white">-</p>
-            </div>
-            <div onclick="quickFilter('0')" style="--bubble: 34 197 94" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-green-500 cursor-pointer" data-filter="0">
-                <p class="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Perfect</p>
-                <p id="stat_0" class="text-lg font-bold text-green-400">-</p>
-            </div>
-            <div onclick="quickFilter('1')" style="--bubble: 45 212 191" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-teal-400 cursor-pointer" data-filter="1">
-                <p class="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Great</p>
-                <p id="stat_1" class="text-lg font-bold text-teal-400">-</p>
-            </div>
-            <div onclick="quickFilter('2')" style="--bubble: 234 179 8" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-yellow-500 cursor-pointer" data-filter="2">
-                <p class="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Okay</p>
-                <p id="stat_2" class="text-lg font-bold text-yellow-400">-</p>
-            </div>
-            <div onclick="quickFilter('3')" style="--bubble: 249 115 22" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-orange-500 cursor-pointer" data-filter="3">
-                <p class="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Bad</p>
-                <p id="stat_3" class="text-lg font-bold text-orange-400">-</p>
-            </div>
-            <div onclick="quickFilter('4')" style="--bubble: 239 68 68" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-red-500 cursor-pointer" data-filter="4">
-                <p class="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Intro</p>
-                <p id="stat_4" class="text-lg font-bold text-red-400">-</p>
-            </div>
-            <div onclick="quickFilter('5')" style="--bubble: 220 38 38" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-red-600 cursor-pointer" data-filter="5">
-                <p class="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">No Boot</p>
-                <p id="stat_5" class="text-lg font-bold text-red-600">-</p>
-            </div>
-            <div onclick="quickFilter('99')" style="--bubble: 100 116 139" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-slate-500 cursor-pointer" data-filter="99">
-                <p class="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Untested</p>
-                <p id="stat_99" class="text-lg font-bold text-slate-400">-</p>
-            </div>
+        <div id="statsPanel" role="group" aria-label="Filter by rating" class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 mb-10 opacity-0 transition-opacity duration-500">
+            <button type="button" data-filter="all" aria-pressed="true" style="--bubble: 148 163 184" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                <span class="block text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Total</span>
+                <span id="stat_total" class="block text-lg font-bold text-white">-</span>
+            </button>
+            <button type="button" data-filter="0" aria-pressed="false" style="--bubble: 34 197 94" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-green-500 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                <span class="block text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Perfect</span>
+                <span id="stat_0" class="block text-lg font-bold text-green-400">-</span>
+            </button>
+            <button type="button" data-filter="1" aria-pressed="false" style="--bubble: 45 212 191" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-teal-400 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                <span class="block text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Great</span>
+                <span id="stat_1" class="block text-lg font-bold text-teal-400">-</span>
+            </button>
+            <button type="button" data-filter="2" aria-pressed="false" style="--bubble: 234 179 8" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-yellow-500 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                <span class="block text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Okay</span>
+                <span id="stat_2" class="block text-lg font-bold text-yellow-400">-</span>
+            </button>
+            <button type="button" data-filter="3" aria-pressed="false" style="--bubble: 249 115 22" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-orange-500 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                <span class="block text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Bad</span>
+                <span id="stat_3" class="block text-lg font-bold text-orange-400">-</span>
+            </button>
+            <button type="button" data-filter="4" aria-pressed="false" style="--bubble: 239 68 68" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-red-500 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                <span class="block text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Intro</span>
+                <span id="stat_4" class="block text-lg font-bold text-red-400">-</span>
+            </button>
+            <button type="button" data-filter="5" aria-pressed="false" style="--bubble: 220 38 38" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-red-600 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                <span class="block text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">No Boot</span>
+                <span id="stat_5" class="block text-lg font-bold text-red-600">-</span>
+            </button>
+            <button type="button" data-filter="99" aria-pressed="false" style="--bubble: 100 116 139" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-slate-500 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                <span class="block text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Untested</span>
+                <span id="stat_99" class="block text-lg font-bold text-slate-400">-</span>
+            </button>
         </div>
 
         <!-- Loading State -->
@@ -337,7 +337,6 @@
                 document.getElementById('loading').classList.add('hidden');
                 document.getElementById('statsPanel').classList.replace('opacity-0', 'opacity-100');
                 
-                updateStats(masterData);
                 buildCards();
                 filter();
             } catch (err) {
@@ -371,19 +370,14 @@
                 99: data.filter(g => g.compatibility === 99).length
             };
 
-            document.getElementById('stat_total').innerText = counts.total;
-            document.getElementById('stat_0').innerText = counts[0];
-            document.getElementById('stat_1').innerText = counts[1];
-            document.getElementById('stat_2').innerText = counts[2];
-            document.getElementById('stat_3').innerText = counts[3];
-            document.getElementById('stat_4').innerText = counts[4];
-            document.getElementById('stat_5').innerText = counts[5];
-            document.getElementById('stat_99').innerText = counts[99];
-        }
-
-        function quickFilter(status) {
-            document.getElementById('statusFilter').value = status;
-            filter();
+            setText(document.getElementById('stat_total'), counts.total);
+            setText(document.getElementById('stat_0'), counts[0]);
+            setText(document.getElementById('stat_1'), counts[1]);
+            setText(document.getElementById('stat_2'), counts[2]);
+            setText(document.getElementById('stat_3'), counts[3]);
+            setText(document.getElementById('stat_4'), counts[4]);
+            setText(document.getElementById('stat_5'), counts[5]);
+            setText(document.getElementById('stat_99'), counts[99]);
         }
 
         // The Tailwind CDN rescans every element on the page whenever an element is added
@@ -473,15 +467,19 @@
             const type = document.getElementById('typeFilter').value;
 
             document.querySelectorAll('.stat-bubble').forEach(b => {
-                b.classList.toggle('active', b.getAttribute('data-filter') === status);
+                b.setAttribute('aria-pressed', b.dataset.filter === status);
             });
 
-            const filtered = masterData.filter(g => {
+            const matching = masterData.filter(g => {
                 const nameMatch = g.searchName.includes(query) || 
                                  g.searchId.includes(query);
-                const statusMatch = status === 'all' || (g.compatibility !== undefined && g.compatibility.toString() === status);
-                return nameMatch && statusMatch && matchesType(g, type);
+                return nameMatch && matchesType(g, type);
             });
+            // The bubbles count the games matching the search and type, so each shows how
+            // many you'd get by picking that rating
+            updateStats(matching);
+
+            const filtered = matching.filter(g => status === 'all' || (g.compatibility !== undefined && g.compatibility.toString() === status));
             render(filtered);
         }
 
@@ -525,6 +523,13 @@
 
         document.getElementById('statusFilter').addEventListener('change', filter);
         document.getElementById('typeFilter').addEventListener('change', filter);
+
+        document.getElementById('statsPanel').addEventListener('click', (e) => {
+            const bubble = e.target.closest('.stat-bubble');
+            if (!bubble) return;
+            document.getElementById('statusFilter').value = bubble.dataset.filter;
+            filter();
+        });
 
         // load/error don't bubble, so listen in the capture phase for every card's image
         const gameGrid = document.getElementById('gameGrid');
