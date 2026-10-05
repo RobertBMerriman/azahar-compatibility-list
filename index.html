@@ -4,6 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Azahar Compatibility List</title>
+    <!-- Start downloading the data straight away instead of after Tailwind has loaded.
+         These must match the URLs fetched in init(). -->
+    <link rel="preload" href="https://raw.githubusercontent.com/azahar-emu/compatibility-list/refs/heads/master/compatibility_list.json" as="fetch" crossorigin>
+    <script>
+        // Pages opened from disk can't load data/ (see fetchGameData), so only preload it over HTTP
+        if (location.protocol !== 'file:') {
+            document.head.append(Object.assign(document.createElement('link'), {
+                rel: 'preload', href: 'data/games.json', as: 'fetch', crossOrigin: 'anonymous',
+            }));
+        }
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -22,6 +33,25 @@
             -webkit-backdrop-filter: blur(12px);
             border: 1px solid rgba(255, 255, 255, 0.1); 
         }
+
+        /* Skip layout and painting for cards that are off screen */
+        #gameGrid > div {
+            content-visibility: auto;
+            contain-intrinsic-size: auto 266px;
+        }
+
+        /* A faint wash of the rating's colour (--rating, an "r g b" triple) so cards
+           can be told apart at a glance */
+        .rating-tint {
+            background-image: linear-gradient(135deg, rgb(var(--rating) / 0.12), rgb(var(--rating) / 0.02) 55%);
+            border-color: rgb(var(--rating) / 0.25);
+        }
+
+        /* Box art fades in once loaded. These use data attributes rather than classes
+           because the Tailwind CDN rescans the whole page whenever a class changes. */
+        .boxart { opacity: 0; transition: opacity 0.3s; }
+        .boxart[data-loaded] { opacity: 1; }
+        .boxart[data-failed] { display: none; }
 
         .card-hover {
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -42,9 +72,10 @@
             transform: translateY(-2px);
         }
 
-        .stat-bubble.active {
-            background: rgba(59, 130, 246, 0.2);
-            border-color: rgba(59, 130, 246, 0.5);
+        /* The selected bubble is outlined and faintly filled in its own colour (--bubble) */
+        .stat-bubble[aria-pressed="true"] {
+            background: rgb(var(--bubble) / 0.15);
+            border-color: rgb(var(--bubble));
         }
 
         ::-webkit-scrollbar { width: 8px; }
@@ -100,13 +131,18 @@
         <!-- Search & Filter Bar -->
         <div class="glass rounded-3xl p-4 mb-8 flex flex-col md:flex-row gap-4 shadow-2xl">
             <div class="relative flex-grow">
-                <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"></i>
-                <input type="text" id="searchInput" placeholder="Search by game name or Title ID..." 
-                    class="w-full bg-slate-900/80 border border-slate-700 rounded-2xl py-4 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-white placeholder-slate-500">
+                <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none"></i>
+                <input type="text" id="searchInput" placeholder="Search by name or Title ID..."
+                    autocomplete="off" spellcheck="false" enterkeyhint="search"
+                    class="w-full bg-slate-900/80 border border-slate-700 rounded-2xl py-4 pl-12 pr-14 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-white placeholder-slate-500">
+                <button type="button" id="clearSearch" aria-label="Clear search" title="Clear search"
+                    class="hidden absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-xl text-slate-400 hover:text-white hover:bg-slate-700/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 transition-colors">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
             </div>
             
-            <div class="flex gap-2 min-w-[200px]">
-                <select id="statusFilter" class="w-full bg-slate-900/80 border border-slate-700 rounded-2xl px-6 py-4 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-white appearance-none cursor-pointer">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 md:flex md:gap-4">
+                <select id="statusFilter" aria-label="Filter by rating" class="w-full md:w-52 bg-slate-900/80 border border-slate-700 rounded-2xl px-4 md:px-6 py-4 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-white appearance-none cursor-pointer">
                     <option value="all">📊 All Ratings</option>
                     <option value="0">✅ Perfect</option>
                     <option value="1">🟢 Great</option>
@@ -116,49 +152,79 @@
                     <option value="5">💀 Won't Boot</option>
                     <option value="99">❓ Not Tested</option>
                 </select>
+                <select id="typeFilter" aria-label="Filter by type" class="w-full md:w-52 bg-slate-900/80 border border-slate-700 rounded-2xl px-4 md:px-6 py-4 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-white appearance-none cursor-pointer">
+                    <option value="all">🎮 All Types</option>
+                    <option value="retail">💾 Cartridge</option>
+                    <option value="eshop">🛍️ eShop only</option>
+                    <option value="new3ds">⭐ New 3DS only</option>
+                    <option value="other">🧩 Demos &amp; other</option>
+                    <option value="vc">📺 Virtual Console</option>
+                    <optgroup label="Virtual Console">
+                        <option value="vc-nes">NES</option>
+                        <option value="vc-snes">Super NES</option>
+                        <option value="vc-gb">Game Boy</option>
+                        <option value="vc-gbc">Game Boy Color</option>
+                        <option value="vc-gg">Game Gear</option>
+                    </optgroup>
+                </select>
             </div>
         </div>
 
         <!-- Detailed Stats Summary (Interactive Bubbles) -->
-        <div id="statsPanel" class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 mb-10 opacity-0 transition-opacity duration-500">
-            <div onclick="quickFilter('all')" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-blue-500 cursor-pointer active" data-filter="all">
-                <p class="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Total</p>
-                <p id="stat_total" class="text-lg font-bold text-white">-</p>
-            </div>
-            <div onclick="quickFilter('0')" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-green-500 cursor-pointer" data-filter="0">
-                <p class="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Perfect</p>
-                <p id="stat_0" class="text-lg font-bold text-green-400">-</p>
-            </div>
-            <div onclick="quickFilter('1')" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-emerald-400 cursor-pointer" data-filter="1">
-                <p class="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Great</p>
-                <p id="stat_1" class="text-lg font-bold text-emerald-400">-</p>
-            </div>
-            <div onclick="quickFilter('2')" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-yellow-500 cursor-pointer" data-filter="2">
-                <p class="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Okay</p>
-                <p id="stat_2" class="text-lg font-bold text-yellow-400">-</p>
-            </div>
-            <div onclick="quickFilter('3')" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-orange-500 cursor-pointer" data-filter="3">
-                <p class="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Bad</p>
-                <p id="stat_3" class="text-lg font-bold text-orange-400">-</p>
-            </div>
-            <div onclick="quickFilter('4')" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-red-500 cursor-pointer" data-filter="4">
-                <p class="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Intro</p>
-                <p id="stat_4" class="text-lg font-bold text-red-400">-</p>
-            </div>
-            <div onclick="quickFilter('5')" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-slate-900 cursor-pointer" data-filter="5">
-                <p class="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">No Boot</p>
-                <p id="stat_5" class="text-lg font-bold text-red-600">-</p>
-            </div>
-            <div onclick="quickFilter('99')" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-slate-600 cursor-pointer" data-filter="99">
-                <p class="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Untested</p>
-                <p id="stat_99" class="text-lg font-bold text-slate-400">-</p>
-            </div>
+        <div id="statsPanel" role="group" aria-label="Filter by rating" class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 mb-10 opacity-0 transition-opacity duration-500">
+            <button type="button" data-filter="all" aria-pressed="true" style="--bubble: 148 163 184" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                <span class="block text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Total</span>
+                <span id="stat_total" class="block text-lg font-bold text-white">-</span>
+            </button>
+            <button type="button" data-filter="0" aria-pressed="false" style="--bubble: 34 197 94" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-green-500 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                <span class="block text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Perfect</span>
+                <span id="stat_0" class="block text-lg font-bold text-green-400">-</span>
+            </button>
+            <button type="button" data-filter="1" aria-pressed="false" style="--bubble: 45 212 191" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-teal-400 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                <span class="block text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Great</span>
+                <span id="stat_1" class="block text-lg font-bold text-teal-400">-</span>
+            </button>
+            <button type="button" data-filter="2" aria-pressed="false" style="--bubble: 234 179 8" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-yellow-500 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                <span class="block text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Okay</span>
+                <span id="stat_2" class="block text-lg font-bold text-yellow-400">-</span>
+            </button>
+            <button type="button" data-filter="3" aria-pressed="false" style="--bubble: 249 115 22" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-orange-500 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                <span class="block text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Bad</span>
+                <span id="stat_3" class="block text-lg font-bold text-orange-400">-</span>
+            </button>
+            <button type="button" data-filter="4" aria-pressed="false" style="--bubble: 239 68 68" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-red-500 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                <span class="block text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Intro</span>
+                <span id="stat_4" class="block text-lg font-bold text-red-400">-</span>
+            </button>
+            <button type="button" data-filter="5" aria-pressed="false" style="--bubble: 220 38 38" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-red-600 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                <span class="block text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">No Boot</span>
+                <span id="stat_5" class="block text-lg font-bold text-red-600">-</span>
+            </button>
+            <button type="button" data-filter="99" aria-pressed="false" style="--bubble: 100 116 139" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-slate-500 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                <span class="block text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Untested</span>
+                <span id="stat_99" class="block text-lg font-bold text-slate-400">-</span>
+            </button>
         </div>
 
         <!-- Loading State -->
         <div id="loading" class="flex flex-col items-center justify-center py-32">
             <div class="w-16 h-16 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-custom-spin mb-6"></div>
             <p class="text-slate-400 font-medium animate-pulse text-lg">Syncing with Azahar database...</p>
+        </div>
+
+        <div class="flex items-center justify-between gap-4 mb-4">
+            <div class="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
+                <p id="resultCount" class="text-sm text-slate-500"></p>
+                <!-- Shown by writeUrlState() whenever anything differs from the defaults -->
+                <button type="button" id="resetFilters" hidden
+                    class="-ml-2 rounded-lg px-2 py-1 text-sm text-slate-400 hover:text-white hover:bg-slate-800/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 transition-colors">
+                    <i class="fa-solid fa-rotate-left mr-1 text-xs"></i>Reset
+                </button>
+            </div>
+            <div id="sortOrder" role="group" aria-label="Sort by" class="flex shrink-0 items-center gap-1 rounded-xl border border-slate-700 bg-slate-900/80 p-1 text-sm">
+                <button type="button" data-sort="name" aria-pressed="true" class="rounded-lg px-3 py-2 sm:py-1.5 font-semibold text-slate-400 hover:text-white aria-pressed:bg-slate-700 aria-pressed:text-white transition-colors">A–Z</button>
+                <button type="button" data-sort="rating" aria-pressed="false" class="rounded-lg px-3 py-2 sm:py-1.5 font-semibold text-slate-400 hover:text-white aria-pressed:bg-slate-700 aria-pressed:text-white transition-colors">Rating</button>
+            </div>
         </div>
 
         <!-- Results Grid -->
@@ -176,55 +242,117 @@
         </div>
     </div>
 
+    <footer class="max-w-7xl mx-auto px-4 mt-16 text-center text-xs text-slate-600">
+        Compatibility data from <a href="https://github.com/azahar-emu/compatibility-list" class="underline hover:text-slate-400">Azahar</a>.
+        Box art from <a href="https://www.gametdb.com/" class="underline hover:text-slate-400">GameTDB</a>
+        and <a href="https://github.com/libretro-thumbnails/Nintendo_-_Nintendo_3DS" class="underline hover:text-slate-400">libretro-thumbnails</a>.
+    </footer>
+
     <script>
         const JSON_URL = 'https://raw.githubusercontent.com/azahar-emu/compatibility-list/refs/heads/master/compatibility_list.json';
+        // Box art and other details keyed by Title ID, generated by scripts/update-game-data.mjs
+        const GAME_DATA_DIR = 'data/';
         
         const THEMES = {
-            0: { label: 'Perfect', color: 'bg-green-500', shadow: 'shadow-green-500/20', icon: 'fa-check-double', desc: 'Runs flawlessly at full speed.' },
-            1: { label: 'Great', color: 'bg-emerald-500', shadow: 'shadow-emerald-500/20', icon: 'fa-check', desc: 'Playable with minor audio/visual glitches.' },
-            2: { label: 'Okay', color: 'bg-yellow-500', shadow: 'shadow-yellow-500/20', icon: 'fa-circle-exclamation', desc: 'Significant glitches or performance drops.' },
-            3: { label: 'Bad', color: 'bg-orange-500', shadow: 'shadow-orange-500/20', icon: 'fa-triangle-exclamation', desc: 'Severe issues, difficult to play.' },
-            4: { label: 'Intro/Menu', color: 'bg-red-500', shadow: 'shadow-red-500/20', icon: 'fa-rectangle-list', desc: 'Loads menus but crashes during gameplay.' },
-            5: { label: 'Won\'t Boot', color: 'bg-slate-900 border-2 border-red-600', shadow: 'shadow-red-900/20', icon: 'fa-skull', desc: 'Does not load or crashes immediately.' },
-            99: { label: 'Not Tested', color: 'bg-slate-600', shadow: 'shadow-slate-500/10', icon: 'fa-question', desc: 'No compatibility reports yet.' }
+            0: { label: 'Perfect', color: 'bg-green-500', shadow: 'shadow-green-500/20', tint: '34 197 94', text: 'text-green-400', icon: 'fa-check-double', desc: 'Runs flawlessly at full speed.' },
+            1: { label: 'Great', color: 'bg-teal-500', shadow: 'shadow-teal-500/20', tint: '20 184 166', text: 'text-teal-400', icon: 'fa-check', desc: 'Playable with minor audio/visual glitches.' },
+            2: { label: 'Okay', color: 'bg-yellow-500', shadow: 'shadow-yellow-500/20', tint: '234 179 8', text: 'text-yellow-400', icon: 'fa-circle-exclamation', desc: 'Significant glitches or performance drops.' },
+            3: { label: 'Bad', color: 'bg-orange-500', shadow: 'shadow-orange-500/20', tint: '249 115 22', text: 'text-orange-400', icon: 'fa-triangle-exclamation', desc: 'Severe issues, difficult to play.' },
+            4: { label: 'Intro/Menu', color: 'bg-red-500', shadow: 'shadow-red-500/20', tint: '239 68 68', text: 'text-red-500', icon: 'fa-rectangle-list', desc: 'Loads menus but crashes during gameplay.' },
+            5: { label: 'Won\'t Boot', color: 'bg-slate-900 border-2 border-red-600', shadow: 'shadow-red-900/20', tint: '220 38 38', text: 'text-red-600', icon: 'fa-skull', desc: 'Does not load or crashes immediately.' },
+            99: { label: 'Not Tested', color: 'bg-slate-600', shadow: 'shadow-slate-500/10', tint: '100 116 139', text: 'text-slate-300', icon: 'fa-question', desc: 'No compatibility reports yet.' }
+        };
+
+        function virtualConsole(system) {
+            return { label: 'Virtual Console', system, icon: 'fa-tv', group: 'vc' };
+        }
+
+        // Kinds of title, from data/games.json. The type filter matches the key or the group.
+        const GAME_TYPES = {
+            retail: { label: 'Cartridge', icon: 'fa-sd-card', group: 'retail' },
+            eshop: { label: 'eShop', icon: 'fa-bag-shopping', group: 'eshop' },
+            vc: virtualConsole(),
+            'vc-nes': virtualConsole('NES'),
+            'vc-snes': virtualConsole('Super NES'),
+            'vc-gb': virtualConsole('Game Boy'),
+            'vc-gbc': virtualConsole('Game Boy Color'),
+            'vc-gg': virtualConsole('Game Gear'),
+            demo: { label: 'Demo', icon: 'fa-flask', group: 'other' },
+            update: { label: 'Update', icon: 'fa-arrows-rotate', group: 'other' },
+            dlc: { label: 'DLC', icon: 'fa-puzzle-piece', group: 'other' },
+            video: { label: 'Video', icon: 'fa-film', group: 'other' },
+            system: { label: 'System app', icon: 'fa-gear', group: 'other' },
+            dsiware: { label: 'DSiWare', icon: 'fa-bag-shopping', group: 'other' },
         };
 
         let masterData = [];
+        let sortOrder = 'name';
+
+        const searchInput = document.getElementById('searchInput');
+        const clearSearch = document.getElementById('clearSearch');
 
         // Helper to remove accents/diacritics (e.g., Pokémon -> Pokemon)
         function normalizeText(text) {
             return text.normalize('NFD').replace(/[\u0300-\u036f]/g, "").toLowerCase();
         }
 
+        function escapeHtml(text) {
+            return String(text).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+        }
+
+        // Game data is optional, so if it's missing the cards just show placeholders
+        async function fetchGameData() {
+            // Browsers block fetch() for pages opened from disk
+            if (location.protocol === 'file:') {
+                console.info('Box art needs the page served over HTTP, e.g. `python3 -m http.server`');
+                return {};
+            }
+            try {
+                const response = await fetch(GAME_DATA_DIR + 'games.json');
+                return response.ok ? await response.json() : {};
+            } catch {
+                return {};
+            }
+        }
+
         async function init() {
             try {
-                const response = await fetch(JSON_URL);
+                const [response, gameData] = await Promise.all([fetch(JSON_URL), fetchGameData()]);
                 if (!response.ok) throw new Error('Network response was not ok');
                 const data = await response.json();
-                
-                masterData = Object.entries(data).map(([id, item]) => {
-                    const name = item.title || 
-                               item.name || 
-                               (item.info && (item.info.title || item.info.name)) || 
-                               (item.information && (item.information.title || item.information.name)) || 
-                               id;
+                const boxart = gameData.art || {};
+                const types = gameData.types || {};
+                const new3ds = gameData.new3ds || {};
 
-                    return { 
-                        title_id: id, 
+                masterData = (Array.isArray(data) ? data : Object.values(data)).map((item) => {
+                    const titleIds = (item.releases || []).map(r => r.id).filter(Boolean).map(id => id.toUpperCase());
+                    // Data for the first region that has it
+                    const lookup = (map) => map[titleIds.find(id => map[id])] || null;
+                    const name = item.title ||
+                               item.name ||
+                               (item.info && (item.info.title || item.info.name)) ||
+                               (item.information && (item.information.title || item.information.name)) ||
+                               titleIds[0] || 'Unknown';
+
+                    return {
+                        title_ids: titleIds,
                         compatibility: item.compatibility !== undefined ? item.compatibility : 99,
                         name: name,
+                        art: lookup(boxart),
+                        type: lookup(types),
+                        new3ds: titleIds.some(id => new3ds[id]),
                         searchName: normalizeText(name),
-                        searchId: normalizeText(id)
+                        searchId: normalizeText(titleIds.join(' '))
                     };
                 });
-
-                masterData.sort((a, b) => a.name.localeCompare(b.name));
 
                 document.getElementById('loading').classList.add('hidden');
                 document.getElementById('statsPanel').classList.replace('opacity-0', 'opacity-100');
                 
-                updateStats(masterData);
-                render(masterData);
+                buildCards();
+                readUrlState();
+                sortCards();
+                filter();
             } catch (err) {
                 document.getElementById('loading').innerHTML = `
                     <div class="glass p-8 rounded-3xl border-red-500/50 max-w-md mx-auto">
@@ -236,6 +364,12 @@
                 `;
                 console.error('Fetch Error:', err);
             }
+        }
+
+        // Updates the existing text node rather than replacing it, as the Tailwind CDN rescans
+        // the whole page whenever an element or text node is added
+        function setText(element, text) {
+            (element.firstChild || element.appendChild(document.createTextNode(''))).data = text;
         }
 
         function updateStats(data) {
@@ -250,94 +384,236 @@
                 99: data.filter(g => g.compatibility === 99).length
             };
 
-            document.getElementById('stat_total').innerText = counts.total;
-            document.getElementById('stat_0').innerText = counts[0];
-            document.getElementById('stat_1').innerText = counts[1];
-            document.getElementById('stat_2').innerText = counts[2];
-            document.getElementById('stat_3').innerText = counts[3];
-            document.getElementById('stat_4').innerText = counts[4];
-            document.getElementById('stat_5').innerText = counts[5];
-            document.getElementById('stat_99').innerText = counts[99];
+            setText(document.getElementById('stat_total'), counts.total);
+            setText(document.getElementById('stat_0'), counts[0]);
+            setText(document.getElementById('stat_1'), counts[1]);
+            setText(document.getElementById('stat_2'), counts[2]);
+            setText(document.getElementById('stat_3'), counts[3]);
+            setText(document.getElementById('stat_4'), counts[4]);
+            setText(document.getElementById('stat_5'), counts[5]);
+            setText(document.getElementById('stat_99'), counts[99]);
         }
 
-        function quickFilter(status) {
-            document.getElementById('statusFilter').value = status;
-            
-            document.querySelectorAll('.stat-bubble').forEach(b => {
-                if (b.getAttribute('data-filter') === status) {
-                    b.classList.add('active');
-                } else {
-                    b.classList.remove('active');
-                }
+        // The Tailwind CDN rescans every element on the page whenever an element is added
+        // or a class changes, which is slow with ~1200 cards. So cards are built once (and
+        // added to the page by sortCards()), and filtering only changes styles, text and
+        // classes that are already set (toggle() with a force argument doesn't touch the
+        // attribute when nothing changes).
+        function buildCards() {
+            masterData.forEach((game) => {
+                game.card = createCard(game);
             });
-            
-            filter();
+        }
+
+        function createCard(game) {
+            const theme = THEMES[game.compatibility] || THEMES[99];
+            const name = escapeHtml(game.name);
+            const tooltip = escapeHtml(`${game.name}\nTitle ID${game.title_ids.length > 1 ? 's' : ''}: ${game.title_ids.join('\n')}`);
+            const card = document.createElement('div');
+            card.className = 'glass rating-tint rounded-3xl p-6 card-hover flex flex-col h-full';
+            card.style.setProperty('--rating', theme.tint);
+
+            // The art box has a fixed size so cards don't jump when images load
+            const art = game.art
+                ? `<img src="${GAME_DATA_DIR}${escapeHtml(game.art)}" alt="" loading="lazy" decoding="async"
+                        class="boxart col-start-1 row-start-1 w-full h-full object-contain bg-slate-900">`
+                : '';
+
+            const type = GAME_TYPES[game.type];
+            const badge = (icon, label) => `
+                <span class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-slate-800/80 border border-slate-700/60 px-2.5 py-0.5 text-[11px] font-semibold text-slate-400">
+                    ${icon ? `<i class="fa-solid ${icon}"></i>` : ''}${label}
+                </span>`;
+            const badges = [
+                type && badge(type.icon, type.label),
+                type?.system && badge(null, type.system),
+                game.new3ds && badge('fa-star', 'New 3DS'),
+            ].filter(Boolean).join('');
+
+            card.innerHTML = `
+                <div class="flex gap-4 mb-6">
+                    <div class="shrink-0 w-28 aspect-[9/8] rounded-xl bg-slate-900/60 border border-slate-700/50 overflow-hidden grid place-items-center">
+                        <i class="fa-solid fa-gamepad col-start-1 row-start-1 text-2xl text-slate-700"></i>
+                        ${art}
+                    </div>
+                    <div class="min-w-0">
+                        <h3 class="text-lg font-bold text-white leading-snug line-clamp-3" title="${tooltip}">
+                            ${name}
+                        </h3>
+                        ${badges ? `<div class="mt-2 flex flex-wrap gap-1.5">${badges}</div>` : ''}
+                    </div>
+                </div>
+
+                <div class="mt-auto">
+                    <div class="flex items-center gap-4 mb-3">
+                        <div class="w-12 h-12 rounded-2xl ${theme.color} ${theme.shadow} flex items-center justify-center text-white shadow-lg text-lg">
+                            <i class="fa-solid ${theme.icon}"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm font-black ${theme.text} uppercase tracking-wide">${theme.label}</p>
+                            <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Rating: ${game.compatibility}</p>
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-400 leading-relaxed italic border-t border-slate-700/50 pt-3">
+                        ${theme.desc}
+                    </p>
+                </div>
+            `;
+            return card;
         }
 
         function render(list) {
-            const grid = document.getElementById('gameGrid');
-            const empty = document.getElementById('noResults');
-            grid.innerHTML = '';
-
-            if (list.length === 0) {
-                empty.classList.remove('hidden');
-                return;
-            }
-            empty.classList.add('hidden');
-
-            list.forEach((game) => {
-                const theme = THEMES[game.compatibility] || THEMES[99];
-                const card = document.createElement('div');
-                card.className = 'glass rounded-3xl p-6 card-hover flex flex-col h-full';
-                
-                card.innerHTML = `
-                    <h3 class="text-xl font-bold mb-6 text-white leading-snug line-clamp-2" title="${game.name}">
-                        ${game.name}
-                    </h3>
-
-                    <div class="mt-auto">
-                        <div class="flex items-center gap-4 mb-3">
-                            <div class="w-12 h-12 rounded-2xl ${theme.color} ${theme.shadow} flex items-center justify-center text-white shadow-lg text-lg">
-                                <i class="fa-solid ${theme.icon}"></i>
-                            </div>
-                            <div>
-                                <p class="text-sm font-black text-slate-100 uppercase tracking-wide">${theme.label}</p>
-                                <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Rating: ${game.compatibility}</p>
-                            </div>
-                        </div>
-                        <p class="text-xs text-slate-400 leading-relaxed italic border-t border-slate-700/50 pt-3">
-                            ${theme.desc}
-                        </p>
-                    </div>
-                `;
-                grid.appendChild(card);
+            const visible = new Set(list);
+            masterData.forEach((game) => {
+                game.card.style.display = visible.has(game) ? '' : 'none';
             });
+
+            setText(document.getElementById('resultCount'), list.length === masterData.length
+                ? `${list.length} titles`
+                : `Showing ${list.length} of ${masterData.length} titles`);
+            document.getElementById('noResults').classList.toggle('hidden', list.length > 0);
         }
 
         function filter() {
-            const rawQuery = document.getElementById('searchInput').value;
-            const query = normalizeText(rawQuery);
+            const query = normalizeText(searchInput.value);
             const status = document.getElementById('statusFilter').value;
+            const type = document.getElementById('typeFilter').value;
 
             document.querySelectorAll('.stat-bubble').forEach(b => {
-                if (b.getAttribute('data-filter') === status) {
-                    b.classList.add('active');
-                } else {
-                    b.classList.remove('active');
-                }
+                b.setAttribute('aria-pressed', b.dataset.filter === status);
             });
 
-            const filtered = masterData.filter(g => {
+            const matching = masterData.filter(g => {
                 const nameMatch = g.searchName.includes(query) || 
                                  g.searchId.includes(query);
-                const statusMatch = status === 'all' || (g.compatibility !== undefined && g.compatibility.toString() === status);
-                return nameMatch && statusMatch;
+                return nameMatch && matchesType(g, type);
             });
+            // The bubbles count the games matching the search and type, so each shows how
+            // many you'd get by picking that rating
+            updateStats(matching);
+
+            const filtered = matching.filter(g => status === 'all' || (g.compatibility !== undefined && g.compatibility.toString() === status));
             render(filtered);
+            writeUrlState();
         }
 
-        document.getElementById('searchInput').addEventListener('input', filter);
+        function matchesType(game, type) {
+            if (type === 'all') return true;
+            if (type === 'new3ds') return game.new3ds;
+            return game.type === type || GAME_TYPES[game.type]?.group === type;
+        }
+
+        // Alphabetical, or by rating (best first, Not Tested last) and alphabetical within each.
+        // Moves the existing cards so the page order matches what's shown.
+        function sortCards() {
+            const byName = (a, b) => a.name.localeCompare(b.name);
+            masterData.sort(sortOrder === 'rating' ? (a, b) => a.compatibility - b.compatibility || byName(a, b) : byName);
+            document.getElementById('gameGrid').append(...masterData.map(g => g.card));
+            document.querySelectorAll('#sortOrder button').forEach(b => {
+                b.setAttribute('aria-pressed', b.dataset.sort === sortOrder);
+            });
+        }
+
+        // Keep the search and filters in the URL so results can be shared and survive a reload
+        function readUrlState() {
+            const params = new URLSearchParams(location.search);
+            searchInput.value = params.get('q') || '';
+            clearSearch.classList.toggle('hidden', !searchInput.value);
+            const rating = params.get('rating');
+            if (Object.hasOwn(THEMES, rating)) document.getElementById('statusFilter').value = rating;
+            const typeFilter = document.getElementById('typeFilter');
+            const type = params.get('type');
+            if ([...typeFilter.options].some(o => o.value === type)) typeFilter.value = type;
+            if (params.get('sort') === 'rating') sortOrder = 'rating';
+        }
+
+        function writeUrlState() {
+            const params = new URLSearchParams();
+            if (searchInput.value) params.set('q', searchInput.value);
+            const rating = document.getElementById('statusFilter').value;
+            if (rating !== 'all') params.set('rating', rating);
+            const type = document.getElementById('typeFilter').value;
+            if (type !== 'all') params.set('type', type);
+            if (sortOrder !== 'name') params.set('sort', sortOrder);
+            const query = params.toString();
+            document.getElementById('resetFilters').hidden = !query;
+            try {
+                history.replaceState(null, '', query ? `?${query}` : location.pathname);
+            } catch {
+                // Not allowed for pages opened from disk, and Safari limits how often it's called
+            }
+        }
+
+        let searchTimer;
+
+        // Wait for a pause in typing instead of re-rendering every card on each keystroke
+        searchInput.addEventListener('input', () => {
+            clearSearch.classList.toggle('hidden', !searchInput.value);
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(filter, 150);
+        });
+
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && searchInput.value) {
+                clearSearchInput();
+            } else if (e.key === 'Enter') {
+                clearTimeout(searchTimer);
+                filter();
+                // Close the on-screen keyboard so the results are visible
+                if (matchMedia('(pointer: coarse)').matches) searchInput.blur();
+            }
+        });
+
+        clearSearch.addEventListener('click', () => {
+            clearSearchInput();
+            searchInput.focus();
+        });
+
+        function clearSearchInput() {
+            searchInput.value = '';
+            clearSearch.classList.toggle('hidden', true);
+            clearTimeout(searchTimer);
+            filter();
+        }
+
         document.getElementById('statusFilter').addEventListener('change', filter);
+        document.getElementById('typeFilter').addEventListener('change', filter);
+
+        document.getElementById('statsPanel').addEventListener('click', (e) => {
+            const bubble = e.target.closest('.stat-bubble');
+            if (!bubble) return;
+            document.getElementById('statusFilter').value = bubble.dataset.filter;
+            filter();
+        });
+
+        document.getElementById('sortOrder').addEventListener('click', (e) => {
+            const button = e.target.closest('button');
+            if (!button || button.dataset.sort === sortOrder) return;
+            sortOrder = button.dataset.sort;
+            sortCards();
+            writeUrlState();
+        });
+
+        document.getElementById('resetFilters').addEventListener('click', () => {
+            searchInput.value = '';
+            clearSearch.classList.toggle('hidden', true);
+            document.getElementById('statusFilter').value = 'all';
+            document.getElementById('typeFilter').value = 'all';
+            if (sortOrder !== 'name') {
+                sortOrder = 'name';
+                sortCards();
+            }
+            filter();
+        });
+
+        // load/error don't bubble, so listen in the capture phase for every card's image
+        const gameGrid = document.getElementById('gameGrid');
+        gameGrid.addEventListener('load', (e) => {
+            if (e.target.classList.contains('boxart')) e.target.dataset.loaded = '';
+        }, true);
+        gameGrid.addEventListener('error', (e) => {
+            if (e.target.classList.contains('boxart')) e.target.dataset.failed = '';
+        }, true);
 
         init();
     </script>
