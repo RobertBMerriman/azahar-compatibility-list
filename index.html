@@ -62,9 +62,10 @@
             transform: translateY(-2px);
         }
 
+        /* The selected bubble is outlined and faintly filled in its own colour (--bubble) */
         .stat-bubble.active {
-            background: rgba(59, 130, 246, 0.2);
-            border-color: rgba(59, 130, 246, 0.5);
+            background: rgb(var(--bubble) / 0.15);
+            border-color: rgb(var(--bubble));
         }
 
         ::-webkit-scrollbar { width: 8px; }
@@ -161,35 +162,35 @@
 
         <!-- Detailed Stats Summary (Interactive Bubbles) -->
         <div id="statsPanel" class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 mb-10 opacity-0 transition-opacity duration-500">
-            <div onclick="quickFilter('all')" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-blue-500 cursor-pointer active" data-filter="all">
+            <div onclick="quickFilter('all')" style="--bubble: 148 163 184" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 cursor-pointer active" data-filter="all">
                 <p class="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Total</p>
                 <p id="stat_total" class="text-lg font-bold text-white">-</p>
             </div>
-            <div onclick="quickFilter('0')" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-green-500 cursor-pointer" data-filter="0">
+            <div onclick="quickFilter('0')" style="--bubble: 34 197 94" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-green-500 cursor-pointer" data-filter="0">
                 <p class="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Perfect</p>
                 <p id="stat_0" class="text-lg font-bold text-green-400">-</p>
             </div>
-            <div onclick="quickFilter('1')" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-teal-400 cursor-pointer" data-filter="1">
+            <div onclick="quickFilter('1')" style="--bubble: 45 212 191" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-teal-400 cursor-pointer" data-filter="1">
                 <p class="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Great</p>
                 <p id="stat_1" class="text-lg font-bold text-teal-400">-</p>
             </div>
-            <div onclick="quickFilter('2')" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-yellow-500 cursor-pointer" data-filter="2">
+            <div onclick="quickFilter('2')" style="--bubble: 234 179 8" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-yellow-500 cursor-pointer" data-filter="2">
                 <p class="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Okay</p>
                 <p id="stat_2" class="text-lg font-bold text-yellow-400">-</p>
             </div>
-            <div onclick="quickFilter('3')" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-orange-500 cursor-pointer" data-filter="3">
+            <div onclick="quickFilter('3')" style="--bubble: 249 115 22" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-orange-500 cursor-pointer" data-filter="3">
                 <p class="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Bad</p>
                 <p id="stat_3" class="text-lg font-bold text-orange-400">-</p>
             </div>
-            <div onclick="quickFilter('4')" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-red-500 cursor-pointer" data-filter="4">
+            <div onclick="quickFilter('4')" style="--bubble: 239 68 68" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-red-500 cursor-pointer" data-filter="4">
                 <p class="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Intro</p>
                 <p id="stat_4" class="text-lg font-bold text-red-400">-</p>
             </div>
-            <div onclick="quickFilter('5')" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-slate-900 cursor-pointer" data-filter="5">
+            <div onclick="quickFilter('5')" style="--bubble: 220 38 38" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-red-600 cursor-pointer" data-filter="5">
                 <p class="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">No Boot</p>
                 <p id="stat_5" class="text-lg font-bold text-red-600">-</p>
             </div>
-            <div onclick="quickFilter('99')" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-slate-600 cursor-pointer" data-filter="99">
+            <div onclick="quickFilter('99')" style="--bubble: 100 116 139" class="stat-bubble glass p-2 rounded-xl text-center border-b-2 border-b-slate-500 cursor-pointer" data-filter="99">
                 <p class="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-0.5">Untested</p>
                 <p id="stat_99" class="text-lg font-bold text-slate-400">-</p>
             </div>
@@ -235,7 +236,7 @@
             2: { label: 'Okay', color: 'bg-yellow-500', shadow: 'shadow-yellow-500/20', tint: '234 179 8', text: 'text-yellow-400', icon: 'fa-circle-exclamation', desc: 'Significant glitches or performance drops.' },
             3: { label: 'Bad', color: 'bg-orange-500', shadow: 'shadow-orange-500/20', tint: '249 115 22', text: 'text-orange-400', icon: 'fa-triangle-exclamation', desc: 'Severe issues, difficult to play.' },
             4: { label: 'Intro/Menu', color: 'bg-red-500', shadow: 'shadow-red-500/20', tint: '239 68 68', text: 'text-red-400', icon: 'fa-rectangle-list', desc: 'Loads menus but crashes during gameplay.' },
-            5: { label: 'Won\'t Boot', color: 'bg-slate-900 border-2 border-red-600', shadow: 'shadow-red-900/20', tint: '220 38 38', text: 'text-red-400', icon: 'fa-skull', desc: 'Does not load or crashes immediately.' },
+            5: { label: 'Won\'t Boot', color: 'bg-slate-900 border-2 border-red-600', shadow: 'shadow-red-900/20', tint: '220 38 38', text: 'text-red-600', icon: 'fa-skull', desc: 'Does not load or crashes immediately.' },
             99: { label: 'Not Tested', color: 'bg-slate-600', shadow: 'shadow-slate-500/10', tint: '100 116 139', text: 'text-slate-300', icon: 'fa-question', desc: 'No compatibility reports yet.' }
         };
 
