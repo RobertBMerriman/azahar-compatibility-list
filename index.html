@@ -196,25 +196,30 @@
             return text.normalize('NFD').replace(/[\u0300-\u036f]/g, "").toLowerCase();
         }
 
+        function escapeHtml(text) {
+            return String(text).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+        }
+
         async function init() {
             try {
                 const response = await fetch(JSON_URL);
                 if (!response.ok) throw new Error('Network response was not ok');
                 const data = await response.json();
-                
-                masterData = Object.entries(data).map(([id, item]) => {
-                    const name = item.title || 
-                               item.name || 
-                               (item.info && (item.info.title || item.info.name)) || 
-                               (item.information && (item.information.title || item.information.name)) || 
-                               id;
 
-                    return { 
-                        title_id: id, 
+                masterData = (Array.isArray(data) ? data : Object.values(data)).map((item) => {
+                    const titleIds = (item.releases || []).map(r => r.id).filter(Boolean);
+                    const name = item.title ||
+                               item.name ||
+                               (item.info && (item.info.title || item.info.name)) ||
+                               (item.information && (item.information.title || item.information.name)) ||
+                               titleIds[0] || 'Unknown';
+
+                    return {
+                        title_ids: titleIds,
                         compatibility: item.compatibility !== undefined ? item.compatibility : 99,
                         name: name,
                         searchName: normalizeText(name),
-                        searchId: normalizeText(id)
+                        searchId: normalizeText(titleIds.join(' '))
                     };
                 });
 
@@ -287,12 +292,14 @@
 
             list.forEach((game) => {
                 const theme = THEMES[game.compatibility] || THEMES[99];
+                const name = escapeHtml(game.name);
+                const tooltip = escapeHtml(`${game.name}\nTitle ID${game.title_ids.length > 1 ? 's' : ''}: ${game.title_ids.join('\n')}`);
                 const card = document.createElement('div');
                 card.className = 'glass rounded-3xl p-6 card-hover flex flex-col h-full';
-                
+
                 card.innerHTML = `
-                    <h3 class="text-xl font-bold mb-6 text-white leading-snug line-clamp-2" title="${game.name}">
-                        ${game.name}
+                    <h3 class="text-xl font-bold mb-6 text-white leading-snug line-clamp-2" title="${tooltip}">
+                        ${name}
                     </h3>
 
                     <div class="mt-auto">
