@@ -213,7 +213,14 @@
         </div>
 
         <div class="flex items-center justify-between gap-4 mb-4">
-            <p id="resultCount" class="text-sm text-slate-500"></p>
+            <div class="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
+                <p id="resultCount" class="text-sm text-slate-500"></p>
+                <!-- Shown by writeUrlState() whenever anything differs from the defaults -->
+                <button type="button" id="resetFilters" hidden
+                    class="-ml-2 rounded-lg px-2 py-1 text-sm text-slate-400 hover:text-white hover:bg-slate-800/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 transition-colors">
+                    <i class="fa-solid fa-rotate-left mr-1 text-xs"></i>Reset
+                </button>
+            </div>
             <div id="sortOrder" role="group" aria-label="Sort by" class="flex shrink-0 items-center gap-1 rounded-xl border border-slate-700 bg-slate-900/80 p-1 text-sm">
                 <button type="button" data-sort="name" aria-pressed="true" class="rounded-lg px-3 py-2 sm:py-1.5 font-semibold text-slate-400 hover:text-white aria-pressed:bg-slate-700 aria-pressed:text-white transition-colors">A–Z</button>
                 <button type="button" data-sort="rating" aria-pressed="false" class="rounded-lg px-3 py-2 sm:py-1.5 font-semibold text-slate-400 hover:text-white aria-pressed:bg-slate-700 aria-pressed:text-white transition-colors">Rating</button>
@@ -343,6 +350,7 @@
                 document.getElementById('statsPanel').classList.replace('opacity-0', 'opacity-100');
                 
                 buildCards();
+                readUrlState();
                 sortCards();
                 filter();
             } catch (err) {
@@ -486,6 +494,7 @@
 
             const filtered = matching.filter(g => status === 'all' || (g.compatibility !== undefined && g.compatibility.toString() === status));
             render(filtered);
+            writeUrlState();
         }
 
         function matchesType(game, type) {
@@ -503,6 +512,36 @@
             document.querySelectorAll('#sortOrder button').forEach(b => {
                 b.setAttribute('aria-pressed', b.dataset.sort === sortOrder);
             });
+        }
+
+        // Keep the search and filters in the URL so results can be shared and survive a reload
+        function readUrlState() {
+            const params = new URLSearchParams(location.search);
+            searchInput.value = params.get('q') || '';
+            clearSearch.classList.toggle('hidden', !searchInput.value);
+            const rating = params.get('rating');
+            if (Object.hasOwn(THEMES, rating)) document.getElementById('statusFilter').value = rating;
+            const typeFilter = document.getElementById('typeFilter');
+            const type = params.get('type');
+            if ([...typeFilter.options].some(o => o.value === type)) typeFilter.value = type;
+            if (params.get('sort') === 'rating') sortOrder = 'rating';
+        }
+
+        function writeUrlState() {
+            const params = new URLSearchParams();
+            if (searchInput.value) params.set('q', searchInput.value);
+            const rating = document.getElementById('statusFilter').value;
+            if (rating !== 'all') params.set('rating', rating);
+            const type = document.getElementById('typeFilter').value;
+            if (type !== 'all') params.set('type', type);
+            if (sortOrder !== 'name') params.set('sort', sortOrder);
+            const query = params.toString();
+            document.getElementById('resetFilters').hidden = !query;
+            try {
+                history.replaceState(null, '', query ? `?${query}` : location.pathname);
+            } catch {
+                // Not allowed for pages opened from disk, and Safari limits how often it's called
+            }
         }
 
         let searchTimer;
@@ -552,6 +591,19 @@
             if (!button || button.dataset.sort === sortOrder) return;
             sortOrder = button.dataset.sort;
             sortCards();
+            writeUrlState();
+        });
+
+        document.getElementById('resetFilters').addEventListener('click', () => {
+            searchInput.value = '';
+            clearSearch.classList.toggle('hidden', true);
+            document.getElementById('statusFilter').value = 'all';
+            document.getElementById('typeFilter').value = 'all';
+            if (sortOrder !== 'name') {
+                sortOrder = 'name';
+                sortCards();
+            }
+            filter();
         });
 
         // load/error don't bubble, so listen in the capture phase for every card's image
