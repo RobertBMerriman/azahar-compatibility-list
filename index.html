@@ -322,7 +322,6 @@
                 
                 buildCards();
                 readUrlState();
-                updateStats(masterData);
                 filter();
             } catch (err) {
                 document.getElementById('loading').innerHTML = `
@@ -337,6 +336,12 @@
             }
         }
 
+        // Updates the existing text node rather than replacing it, as the Tailwind CDN rescans
+        // the whole page whenever an element or text node is added
+        function setText(element, text) {
+            (element.firstChild || element.appendChild(document.createTextNode(''))).data = text;
+        }
+
         function updateStats(data) {
             const counts = {
                 total: data.length,
@@ -349,14 +354,14 @@
                 99: data.filter(g => g.compatibility === 99).length
             };
 
-            document.getElementById('stat_total').innerText = counts.total;
-            document.getElementById('stat_0').innerText = counts[0];
-            document.getElementById('stat_1').innerText = counts[1];
-            document.getElementById('stat_2').innerText = counts[2];
-            document.getElementById('stat_3').innerText = counts[3];
-            document.getElementById('stat_4').innerText = counts[4];
-            document.getElementById('stat_5').innerText = counts[5];
-            document.getElementById('stat_99').innerText = counts[99];
+            setText(document.getElementById('stat_total'), counts.total);
+            setText(document.getElementById('stat_0'), counts[0]);
+            setText(document.getElementById('stat_1'), counts[1]);
+            setText(document.getElementById('stat_2'), counts[2]);
+            setText(document.getElementById('stat_3'), counts[3]);
+            setText(document.getElementById('stat_4'), counts[4]);
+            setText(document.getElementById('stat_5'), counts[5]);
+            setText(document.getElementById('stat_99'), counts[99]);
         }
 
         function quickFilter(status) {
@@ -439,11 +444,9 @@
                 game.card.style.display = visible.has(game) ? '' : 'none';
             });
 
-            // Update the existing text node rather than replacing it
-            const count = document.getElementById('resultCount');
-            (count.firstChild || count.appendChild(document.createTextNode(''))).data = list.length === masterData.length
+            setText(document.getElementById('resultCount'), list.length === masterData.length
                 ? `${list.length} titles`
-                : `Showing ${list.length} of ${masterData.length} titles`;
+                : `Showing ${list.length} of ${masterData.length} titles`);
             document.getElementById('noResults').classList.toggle('hidden', list.length > 0);
         }
 
@@ -457,12 +460,16 @@
                 b.classList.toggle('active', b.getAttribute('data-filter') === status);
             });
 
-            const filtered = masterData.filter(g => {
+            const matching = masterData.filter(g => {
                 const nameMatch = g.searchName.includes(query) || 
                                  g.searchId.includes(query);
-                const statusMatch = status === 'all' || (g.compatibility !== undefined && g.compatibility.toString() === status);
-                return nameMatch && statusMatch && matchesType(g, type);
+                return nameMatch && matchesType(g, type);
             });
+            // The bubbles count the games matching the search and type, so each shows how
+            // many you'd get by picking that rating
+            updateStats(matching);
+
+            const filtered = matching.filter(g => status === 'all' || (g.compatibility !== undefined && g.compatibility.toString() === status));
             render(filtered);
             writeUrlState();
         }
